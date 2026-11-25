@@ -1,0 +1,18 @@
+{
+  "id": "girth5-n74-reroute-k2-none",
+  "statement": "In each of the three published 285-edge girth-5 graphs on 74 vertices, freeing the edges at any 1 or 2 vertices and re-adding edges there cannot reach 286 edges with girth at least 5.",
+  "kind": "none",
+  "scope": "Only these three graphs (graph6 sha256 e162f519..., a728d778..., b569fc77...; lines 148-150 of n74.g6 in iter2DownXtra_150.zip from github.com/AGT-Kulak/searchMaxSizeMinGirth) and only reroutings of 1 or 2 vertices. Says nothing about 286 edges in general.",
+  "cert": {
+    "type": "lrat",
+    "checker": "standalone",
+    "slow_recheck": [
+      "d=$(mktemp -d) && curl -sL -o $d/g.zip https://raw.githubusercontent.com/AGT-Kulak/searchMaxSizeMinGirth/main/resultGraphs/iter2DownXtra_150.zip && unzip -q $d/g.zip -d $d && for L in 148 149 150; do go run ./cmd/wb girth5-reroute -k 2 -line $L -out $d/runs $d/iter2DownXtra_150/n74.g6 | grep -q ': 2701 UNSAT with checked proofs, 0 SAT, 0 errors' || exit 1; done"
+    ]
+  },
+  "literature": {
+    "checked": "2026-11-25",
+    "best_published": "ex(74; {C3, C4}) >= 285 (Goedgebeur, Jooken, Joret, Van den Eede, arXiv 2508.05562v2, Sep 2026)",
+    "notes": "A scoped search result, not a bound. Each of the 3 x (74 + 2701) cases was UNSAT with a text LRAT proof accepted by cmd/check-lrat; k = 1 is implied by k = 2 but was also run."
+  }
+}

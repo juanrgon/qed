@@ -102,16 +102,33 @@ func (f *CNF) WriteDIMACS(path string) error {
 // Result is a solver answer. For SAT, Model[v] is the value of variable v.
 // For UNSAT, the proof is at the path given to Solve.
 type Result struct {
-	Sat   bool
-	Model []bool
+	Sat     bool
+	Unknown bool // the conflict limit was hit (SolveLimit only)
+	Model   []bool
 }
 
 // ErrNoSolver means CaDiCaL is not installed.
 var ErrNoSolver = errors.New("cadical not found (brew install cadical)")
 
+// SolveFast is Solve without a proof, for search loops where an UNSAT
+// answer is only a hint and never becomes a claim.
+func SolveFast(f *CNF, cnfPath string) (Result, error) {
+	return solve(f, cnfPath, "", 0)
+}
+
+// SolveLimit is SolveFast with a cap on solver conflicts. If the cap is
+// hit, the result has Unknown set.
+func SolveLimit(f *CNF, cnfPath string, conflicts int) (Result, error) {
+	return solve(f, cnfPath, "", conflicts)
+}
+
 // Solve writes f to cnfPath, runs CaDiCaL, and for UNSAT leaves a text
-// LRAT proof at proofPath.
+// LRAT proof at proofPath (no proof if proofPath is empty).
 func Solve(f *CNF, cnfPath, proofPath string) (Result, error) {
+	return solve(f, cnfPath, proofPath, 0)
+}
+
+func solve(f *CNF, cnfPath, proofPath string, conflicts int) (Result, error) {
 	bin, err := exec.LookPath("cadical")
 	if err != nil {
 		return Result{}, ErrNoSolver
@@ -119,7 +136,16 @@ func Solve(f *CNF, cnfPath, proofPath string) (Result, error) {
 	if err := f.WriteDIMACS(cnfPath); err != nil {
 		return Result{}, err
 	}
-	cmd := exec.Command(bin, "-q", "--lrat=true", "--binary=false", cnfPath, proofPath)
+	args := []string{"-q"}
+	if conflicts > 0 {
+		args = append(args, "-c", strconv.Itoa(conflicts))
+	}
+	if proofPath != "" {
+		args = append(args, "--lrat=true", "--binary=false", cnfPath, proofPath)
+	} else {
+		args = append(args, cnfPath)
+	}
+	cmd := exec.Command(bin, args...)
 	out, err := cmd.Output()
 	code := 0
 	if ee, ok := err.(*exec.ExitError); ok {
@@ -150,6 +176,10 @@ func Solve(f *CNF, cnfPath, proofPath string) (Result, error) {
 		return Result{Sat: true, Model: model}, nil
 	case 20:
 		return Result{Sat: false}, nil
+	case 0:
+		if conflicts > 0 {
+			return Result{Unknown: true}, nil
+		}
 	}
 	return Result{}, fmt.Errorf("cadical exit code %d", code)
 }
