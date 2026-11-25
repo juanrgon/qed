@@ -129,10 +129,18 @@ of 111 and 333 for those cells (checked 2026-11-25).
 
 ## 2. Row swaps from the published 42-row array are dead
 
-Confirmed. `wb swap -m M` checks every M-subset of the published
-CA(42; 3, 8, 3) (sha256 d92e84fc...) and proves that M rows cannot be
-replaced by M - 1. Every case was certified by a clique of M pairwise
-conflicting requirements. There were no undetermined cases.
+Confirmed, with certificates. `wb swap -m M` checks every M-subset of
+the published CA(42; 3, 8, 3) (sha256 d92e84fc...) and proves that M rows
+cannot be replaced by M - 1. Every case was certified by a clique of M
+pairwise conflicting requirements. There were no undetermined cases.
+
+`wb swap -certs FILE` saves each clique, and `cmd/check-swap` (standard
+library only) checks them: for every one of the 850,668 / 5,245,786 /
+26,978,328 subsets (M = 5, 6, 7), it confirms that no row outside the
+subset covers any of the M requirements, that every two of them clash,
+and that each subset appears exactly once. All three passed on
+2026-11-25 (`check-swap` output: "VERIFIED: all 26978328 subsets of 7
+rows have a valid clique certificate").
 
 | M -> M-1 | subsets | time (8 cores) | result |
 |---|---|---|---|
