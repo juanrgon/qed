@@ -13,6 +13,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -51,6 +52,8 @@ func main() {
 		cmdClaims(os.Args[2:])
 	case "girth5-reroute":
 		cmdGirth5Reroute(os.Args[2:])
+	case "girth5-lns":
+		cmdGirth5LNS(os.Args[2:])
 	default:
 		usage()
 	}
@@ -369,6 +372,93 @@ func cmdGirth5Reroute(args []string) {
 	if counts["sat"] > 0 {
 		fmt.Println("SAT graphs were saved; check them with: go run ./cmd/verify-girth5 FILE")
 	}
+}
+
+// cmdGirth5LNS runs the SAT-based large neighborhood search from the
+// graph with the most edges in FILE (or from a greedy graph with -n), one
+// independent run per seed. Every improvement is saved; a run that ends
+// without one is logged as budget exhausted, which proves nothing.
+func cmdGirth5LNS(args []string) {
+	fs := flag.NewFlagSet("girth5-lns", flag.ExitOnError)
+	n := fs.Int("n", 0, "start from a greedy graph on n vertices instead of FILE")
+	k := fs.Int("k", 4, "vertices freed per step")
+	iters := fs.Int("iters", 2000, "steps per seed")
+	conflicts := fs.Int("conflicts", 2000, "solver conflict cap per query")
+	ball := fs.Float64("ball", 0.7, "chance of a local ball instead of random vertices")
+	stop := fs.Int("stop", 0, "stop a seed once it reaches this many edges")
+	degrees := fs.Bool("degrees", true, "per-vertex degree targets (fast) instead of one global edge count")
+	seeds := fs.String("seeds", "0:8", "seed or lo:hi range")
+	workers := fs.Int("workers", 8, "parallel seeds")
+	ledgerPath := fs.String("ledger", "runs/ledger.jsonl", "JSONL ledger")
+	outDir := fs.String("out", "runs/girth5-lns", "where improved graphs go")
+	fs.Parse(args)
+
+	var start girth5.Graph
+	src := fmt.Sprintf("greedy n=%d", *n)
+	if *n == 0 {
+		if fs.NArg() != 1 {
+			die(fmt.Errorf("need a graph6 file or -n"))
+		}
+		raw, err := os.ReadFile(fs.Arg(0))
+		if err != nil {
+			die(err)
+		}
+		for _, l := range strings.Fields(string(raw)) {
+			g, err := girth5.ParseGraph6(l)
+			if err != nil {
+				die(err)
+			}
+			if start == nil || g.Edges() > start.Edges() {
+				start, src = g, fmt.Sprintf("%x", sha256.Sum256([]byte(l)))[:12]
+			}
+		}
+	}
+	sl, err := parseSeeds(*seeds)
+	if err != nil {
+		die(err)
+	}
+	os.MkdirAll(*outDir, 0o755)
+	os.MkdirAll(filepath.Dir(*ledgerPath), 0o755)
+	l, err := run.OpenLedger(*ledgerPath)
+	if err != nil {
+		die(err)
+	}
+	defer l.Close()
+	job := fmt.Sprintf("girth5-lns from=%s k=%d iters=%d conflicts=%d ball=%g degrees=%v", src, *k, *iters, *conflicts, *ball, *degrees)
+	fmt.Println("job:", job)
+	t0 := time.Now()
+	run.Seeds(l, job, sl, *workers, func(seed uint64) run.Record {
+		g := start
+		if g == nil {
+			g = girth5.New(*n)
+			girth5.Greedy(g, rand.New(rand.NewPCG(seed, 1)))
+		}
+		e0 := g.Edges()
+		tmp, err := os.CreateTemp("", "girth5-*.cnf")
+		if err != nil {
+			die(err)
+		}
+		tmp.Close()
+		defer os.Remove(tmp.Name())
+		solve := func(f *sat.CNF) (sat.Result, error) { return sat.SolveLimit(f, tmp.Name(), *conflicts) }
+		var artifact string
+		best, st, err := girth5.LNS(g, girth5.LNSParams{Iters: *iters, K: *k, Seed: seed, Ball: *ball, Stop: *stop, Degrees: *degrees}, solve,
+			func(h girth5.Graph) {
+				p := filepath.Join(*outDir, fmt.Sprintf("n%d-e%d-seed%d.g6", len(h), h.Edges(), seed))
+				os.WriteFile(p, []byte(h.Graph6()+"\n"), 0o644)
+				artifact = p
+				if start != nil {
+					fmt.Printf("  seed %d: IMPROVED to %d edges (start %d): %s\n", seed, h.Edges(), e0, p)
+				}
+			})
+		if err != nil {
+			die(err)
+		}
+		fmt.Printf("  seed %d: %d -> %d edges; %d steps, %d up, %d sideways, %d stuck, %d capped\n",
+			seed, e0, best.Edges(), st.Iters, st.Improved, st.Plateau, st.Stuck, st.Unknown)
+		return run.Record{Solved: best.Edges() > e0 && start != nil, Best: best.Edges(), Moves: int64(st.Iters), Artifact: artifact}
+	})
+	fmt.Printf("wall %s\n", time.Since(t0).Round(time.Second))
 }
 
 func createOrStdout(path string) (*os.File, error) {

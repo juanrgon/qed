@@ -17,6 +17,9 @@ type LNSParams struct {
 	Seed  uint64  // the run is a pure function of the seed
 	Ball  float64 // chance of picking a local ball instead of random vertices
 	Stop  int     // stop early once the graph has this many edges (0: never)
+	// Degrees uses per-vertex degree targets instead of one global edge
+	// count (see NewRerouteDegrees).
+	Degrees bool
 }
 
 // LNSStats summarizes a run.
@@ -117,7 +120,22 @@ func LNS(g Graph, p LNSParams, solve Solver, onImprove func(Graph)) (Graph, LNSS
 			break
 		}
 		R := pick(g, p.K, p.Ball, rng)
-		up := NewReroute(g, R, e+1)
+		build := func(extra int) *Reroute {
+			if !p.Degrees {
+				return NewReroute(g, R, e+extra)
+			}
+			min := map[int]int{}
+			for _, r := range R {
+				for x := range g {
+					if g[r][x] {
+						min[r]++
+					}
+				}
+			}
+			min[R[rng.IntN(len(R))]] += extra
+			return NewRerouteDegrees(g, R, min)
+		}
+		up := build(1)
 		res, err := solve(up.CNF)
 		if err != nil {
 			return g, st, err
@@ -126,16 +144,19 @@ func LNS(g Graph, p LNSParams, solve Solver, onImprove func(Graph)) (Graph, LNSS
 			st.Unknown++
 		}
 		if res.Sat {
-			g = up.Decode(res.Model)
-			e = g.Edges()
-			st.Improved++
-			if onImprove != nil {
-				onImprove(g)
+			// Degree targets do not by themselves guarantee more edges
+			// (edges inside R count twice), so check the count.
+			if h := up.Decode(res.Model); h.Edges() > e {
+				g, e = h, h.Edges()
+				st.Improved++
+				if onImprove != nil {
+					onImprove(g)
+				}
+				continue
 			}
-			continue
 		}
 		// Plateau: same edge count, but not the current configuration.
-		flat := NewReroute(g, R, e)
+		flat := build(0)
 		var block []int
 		for i, ed := range flat.Vars {
 			if g[ed[0]][ed[1]] {
@@ -150,11 +171,13 @@ func LNS(g Graph, p LNSParams, solve Solver, onImprove func(Graph)) (Graph, LNSS
 			return g, st, err
 		}
 		if res.Sat {
-			g = flat.Decode(res.Model)
-			st.Plateau++
-		} else {
-			st.Stuck++
+			if h := flat.Decode(res.Model); h.Edges() >= e {
+				g, e = h, h.Edges()
+				st.Plateau++
+				continue
+			}
 		}
+		st.Stuck++
 	}
 	return g, st, nil
 }

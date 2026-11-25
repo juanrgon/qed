@@ -132,6 +132,37 @@ type Reroute struct {
 // exactly the cycles that could appear. The solver must also choose at
 // least target - |E(H)| variable edges.
 func NewReroute(g Graph, R []int, target int) *Reroute {
+	p := rerouteBase(g, R)
+	p.Target = target
+	var xs []int
+	for i := range p.Vars {
+		xs = append(xs, i+1)
+	}
+	p.CNF.AtLeast(xs, target-p.H.Edges())
+	return p
+}
+
+// NewRerouteDegrees is NewReroute with a degree target per freed vertex
+// instead of one global edge count: vertex r must end with at least
+// minDeg[r] edges. Small per-vertex counters are much easier for the
+// solver than one counter over every variable, at the price of a narrower
+// neighborhood (edge counts cannot shift between freed vertices).
+func NewRerouteDegrees(g Graph, R []int, minDeg map[int]int) *Reroute {
+	p := rerouteBase(g, R)
+	for _, r := range R {
+		var xs []int
+		for i, e := range p.Vars {
+			if e[0] == r || e[1] == r {
+				xs = append(xs, i+1)
+			}
+		}
+		p.CNF.AtLeast(xs, minDeg[r])
+	}
+	return p
+}
+
+// rerouteBase builds the variables and the cycle clauses, with no count.
+func rerouteBase(g Graph, R []int) *Reroute {
 	n := len(g)
 	inR := make([]bool, n)
 	for _, r := range R {
@@ -214,13 +245,7 @@ func NewReroute(g Graph, R []int, target int) *Reroute {
 			}
 		}
 	}
-	need := target - h.Edges()
-	var xs []int
-	for i := range vars {
-		xs = append(xs, i+1)
-	}
-	f.AtLeast(xs, need)
-	return &Reroute{H: h, R: R, Vars: vars, Target: target, CNF: f}
+	return &Reroute{H: h, R: R, Vars: vars, CNF: f}
 }
 
 // Decode builds the graph from a SAT model.

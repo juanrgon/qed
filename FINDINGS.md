@@ -192,6 +192,34 @@ Confirmed on this machine, with 8 seeds per configuration.
   relabeling) loses nothing, but it also gains almost nothing over plain search. It
   is not the structural lever it sounded like.
 
+## 5. Girth-5 graphs (second domain), first runs
+
+Target: ex(n; {C3, C4}), the most edges in an n-vertex graph with no
+triangle or 4-cycle. Exact values are known up to n = 53 (OEIS A006856).
+The best lower bounds for n = 74 to 198 are from Goedgebeur, Jooken,
+Joret and Van den Eede (arXiv 2508.05562v2, Sep 2026), who think n up to
+about 100 is near optimal and larger n may have room. No newer results
+found (search on 2026-11-25).
+
+- **Controls.** `cmd/verify-girth5` checked all 616 graphs in their
+  public archive: every one passes, and the best per n matches their
+  Table 1 for every n compared (50 to 203).
+- **Scoped negative (confirmed, see claims/).** For each of the three
+  285-edge graphs on 74 vertices, all 2,701 two-vertex reroutings fail to
+  reach 286, each with an LRAT proof accepted by `cmd/check-lrat`. This
+  rules out only those neighborhoods of those graphs.
+- **SAT local search** (`wb girth5-lns`): frees k vertices and asks the
+  solver for one more edge, else a sideways move. From greedy starts it
+  reaches the exact values for n = 20 and n = 32 (85 edges, 3 of 4 seeds
+  in about 25 s with per-vertex degree targets).
+- **At n = 150 it makes no progress (budget exhausted, no claim).** From
+  the published 822-edge graph, every query hit the solver's conflict cap,
+  even sideways moves: the record graphs look rigid under 4-vertex
+  reroutes. One global edge counter was much slower than per-vertex degree
+  targets. Next ideas: an exact Go search for single-vertex reroutes
+  instead of SAT, larger but structured neighborhoods, or symmetric
+  (circulant or Cayley) starting graphs.
+
 ## Open next steps
 
 1. Firm up result 1 (see the list above), then write a short note.
