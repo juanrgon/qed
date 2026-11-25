@@ -19,7 +19,7 @@ type solver struct {
 	nodes int64
 	// coloring state
 	col []int
-	sat   [][]int8 // sat[v][c] = neighbors of v with color c
+	sat [][]int8 // sat[v][c] = neighbors of v with color c
 }
 
 func newSolver() *solver { return &solver{} }
