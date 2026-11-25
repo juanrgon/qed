@@ -260,15 +260,15 @@ func cmdLightslice(args []string) {
 		die(fmt.Errorf("input is not a CA(12; 2, 7, 3)"))
 	}
 	t0 := time.Now()
-	t := lightslice.Build(lightslice.Pinned(r))
+	t := lightslice.Build(lightslice.Pinned(r), 8, 12)
 	fmt.Printf("candidate light slices per column (symbol 0,1,2), found in %s:\n", time.Since(t0).Round(time.Millisecond))
-	for Y := 1; Y < lightslice.K; Y++ {
+	for Y := 1; Y < t.K; Y++ {
 		fmt.Printf("  col %d: %d %d %d\n", Y, len(t.Cands[Y][0]), len(t.Cands[Y][1]), len(t.Cands[Y][2]))
 	}
 	bad := 0
 	fmt.Println("compatible pairs per column pair (rows v = symbol in Y, cols w = symbol in Z):")
-	for Y := 1; Y < lightslice.K; Y++ {
-		for Z := Y + 1; Z < lightslice.K; Z++ {
+	for Y := 1; Y < t.K; Y++ {
+		for Z := Y + 1; Z < t.K; Z++ {
 			m := t.Matrix(Y, Z)
 			total := 0
 			for _, row := range m {

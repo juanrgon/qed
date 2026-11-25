@@ -33,27 +33,30 @@ import (
 	"github.com/juanrgon/mathbench/internal/ca"
 )
 
-const K = 8 // columns in the big array
+// MaxK is the most columns a packed Row holds. The main case is K = 8
+// with 12-row slices; the test suite also runs K = 6 with 11-row slices,
+// where a real array (the unique CA(33; 3, 6, 3)) exists, as a control.
+const MaxK = 8
 
-// Row is an 8-column row packed in base 3: digit c is the value at column c.
+// Row is a row of up to 8 columns packed in base 3: digit c is column c.
 type Row uint16
 
-var pow3 = [K + 1]int{1, 3, 9, 27, 81, 243, 729, 2187, 6561}
+var pow3 = [MaxK + 1]int{1, 3, 9, 27, 81, 243, 729, 2187, 6561}
 
 func (r Row) At(c int) uint8 { return uint8(int(r) / pow3[c] % 3) }
 
 func pack(vals []uint8) Row {
 	x := 0
-	for c := K - 1; c >= 0; c-- {
+	for c := len(vals) - 1; c >= 0; c-- {
 		x = x*3 + int(vals[c])
 	}
 	return Row(x)
 }
 
-// Pinned builds A: column 0 is 0 and columns 1..7 are the 12-row array.
+// Pinned builds A: column 0 is 0 and columns 1.. are the given slice.
 func Pinned(r *ca.Array) []Row {
-	if r.K != 7 {
-		panic("need a 7-column array")
+	if r.K+1 > MaxK {
+		panic("too many columns")
 	}
 	out := make([]Row, r.N)
 	for i := 0; i < r.N; i++ {
@@ -76,19 +79,22 @@ type Slice []Row
 // once. After each column, every earlier column must show all 9 pairs
 // with it; while a column is half filled, each earlier column may have at
 // most as many missing pairs as there are rows left to fill.
-func Completions(A []Row, Y int, v uint8) []Slice {
+//
+// k is the number of columns in the big array and size the slice size
+// (8 and 12 for the main result).
+func Completions(A []Row, k, size, Y int, v uint8) []Slice {
 	var fixed []Row
 	for _, r := range A {
 		if r.At(Y) == v {
 			fixed = append(fixed, r)
 		}
 	}
-	need := 12 - len(fixed)
+	need := size - len(fixed)
 	if need <= 0 {
 		return nil
 	}
 	cols := []int{0}
-	for c := 1; c < K; c++ {
+	for c := 1; c < k; c++ {
 		if c != Y {
 			cols = append(cols, c)
 		}
@@ -98,15 +104,15 @@ func Completions(A []Row, Y int, v uint8) []Slice {
 	for i := range M {
 		M[i] = make([]uint8, nc)
 	}
-	var cov [K][9]int // coverage of (cols[jp], cols[j]) for the column being filled
-	var miss [K]int
+	var cov [MaxK][9]int // coverage of (cols[jp], cols[j]) for the column being filled
+	var miss [MaxK]int
 
 	seen := map[string]bool{}
 	var out []Slice
 	emit := func() {
 		s := append(Slice{}, fixed...)
 		for i := 0; i < need; i++ {
-			vals := make([]uint8, K)
+			vals := make([]uint8, k)
 			vals[Y] = v
 			for j, c := range cols {
 				vals[c] = M[i][j]
@@ -233,20 +239,21 @@ func interKey(s Slice, c int, x uint8) string {
 
 // Table holds every candidate slice for each (column, symbol).
 type Table struct {
-	A     []Row
-	Cands [K][3][]Slice
+	A       []Row
+	K, Size int
+	Cands   [MaxK][3][]Slice
 }
 
-// Build enumerates candidates for columns 1..7 in parallel.
-func Build(A []Row) *Table {
-	t := &Table{A: A}
+// Build enumerates candidates for columns 1..k-1 in parallel.
+func Build(A []Row, k, size int) *Table {
+	t := &Table{A: A, K: k, Size: size}
 	var wg sync.WaitGroup
-	for Y := 1; Y < K; Y++ {
+	for Y := 1; Y < k; Y++ {
 		for v := uint8(0); v < 3; v++ {
 			wg.Add(1)
 			go func(Y int, v uint8) {
 				defer wg.Done()
-				t.Cands[Y][v] = Completions(A, Y, v)
+				t.Cands[Y][v] = Completions(A, k, size, Y, v)
 			}(Y, v)
 		}
 	}

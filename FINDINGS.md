@@ -46,9 +46,16 @@ It matches their numbers exactly:
   control pair (1,2) gives the diagonal (4, 2, 4). This matches the
   Problem Scout's list and the Judge's matrix.
 
-Tests: every slice found passes the plain verifier, and on 256 hand-built
-slices per (Y, v) the search agrees with the verifier both ways (42 valid
-ones, all found).
+Tests:
+- Every slice found passes the plain verifier.
+- On 256 hand-built slices per (Y, v), the search agrees with the
+  verifier both ways. 42 of them are valid, and all 42 are found.
+- **Control on a real array.** The same code with 6 columns and 11-row
+  slices runs on the unique CA(33; 3, 6, 3), taken from the 2019 paper.
+  There every symbol is light. Every real slice shows up as a candidate,
+  and all 90 (column pair, symbol pair) entries are nonzero, so there are
+  no false obstructions. This tests the reduction itself, which every
+  other check shares.
 
 **Outside fact this depends on.** CA(12; 2, 7, 3) is unique, and
 CAN(2, 7, 3) = 12. Sources: Colbourn, Kéri, Rivas Soriano, Schlage-Puchta
@@ -59,13 +66,16 @@ Not re-proved here.
 - The live table (2026-11-24) still says 37.
 - [Izquierdo-Marquez and Torres-Jimenez 2019](https://arxiv.org/abs/1711.10040)
   handles 7 and 9 columns and skips 8.
+- [Hiess and Kampel 2025](https://arxiv.org/abs/2510.17596) uses the
+  closest method (balanced arrays). Its full text never mentions the
+  8-column ternary case.
 - Two web searches found no bound of 38 or 39.
 - Not yet checked: their 2018 orderly-algorithm paper
   (doi:10.1142/S1793830918500118), and Colbourn's own tables (login wall).
 
 **Corollaries.** CAN(t, k, v) >= v * CAN(t-1, k-1, v) gives
-CAN(4, 9, 3) >= 117 and CAN(5, 10, 3) >= 351 (the panel says the tables
-show 111 and 333; not checked here).
+CAN(4, 9, 3) >= 117 and CAN(5, 10, 3) >= 351. The live CSVs show floors
+of 111 and 333 for those cells (checked 2026-11-25).
 
 **Before calling it settled:**
 1. Re-prove uniqueness of CA(12; 2, 7, 3), for example with a SAT solver.
@@ -107,15 +117,22 @@ Confirmed on this machine, with 8 seeds per configuration.
 - Column-cycle groups (c7 with 6 orbits, ck with 5 orbits + 2 free) did
   not rebuild 42 on a short budget.
 - At 45 rows the plain engine fails like the panel's naive annealer did
-  (0 of 8 solved, best 1 to 2 missing).
+  (0 of 8 solved, best 1 to 2 missing). I did not run the plain engine
+  head to head against that annealer at equal wall time, so there is no
+  claim that it is better. The speed wins here are the swap checker,
+  the light-slice check, and the structured models.
 
 ## 4. Dead ends for 41 rows, with reasons
 
-- **Shift orbits + 2 free rows (13 + 2): impossible by design.** The
+- **Shift orbits + 2 free rows (13 + 2) is really a 39-row search.** The
   shift sends each requirement to two others on the same columns, and one
   row covers at most one of the three. So any gap left by the orbits needs
-  3 free rows. All 8 seeds stalled at exactly 18 missing. Note that the
-  debate's Feasibility Engineer still suggests this run. It is a waste.
+  3 free rows, and 2 free rows add nothing. The model only succeeds if the
+  13 orbits alone form a shift-invariant CA(39; 3, 8, 3). After result 1,
+  39 is exactly the next open size, so this is not a 41-row search at
+  all. All 8 seeds stalled at exactly 18 missing (6 orbits), which is a
+  first data point on shift-invariant 39-row arrays. The debate's
+  synthesis still recommends this run as a 41-row test. It isn't one.
 - **Shift orbits + 5 free rows (12 + 5):** all 40 seeds stalled at
   exactly 20 missing, which points to another structural floor. Not yet
   explained.

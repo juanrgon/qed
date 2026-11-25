@@ -6,6 +6,73 @@ import (
 	"github.com/juanrgon/mathbench/internal/ca"
 )
 
+const K = 8 // the main case: 8 columns, 12-row slices
+
+// Control on a case where an array really exists. The unique
+// CA(33; 3, 6, 3) has every column split 11/11/11, so every symbol is
+// "light" with 11-row slices. Running the same reduction with k = 6 and
+// size 11 must find every real slice as a candidate, and every pair of
+// real slices must count as compatible. If the method reported an
+// obstruction here, it would be broken.
+func TestControlOnRealArray(t *testing.T) {
+	big, err := ca.ReadFile("../ca/testdata/CA_33_3_6_3.txt", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ca.Verify(big, 3, 3).OK() {
+		t.Fatal("control array does not verify")
+	}
+	rows := make([]Row, big.N)
+	var A []Row
+	for i := 0; i < big.N; i++ {
+		rows[i] = pack(big.Row(i))
+		if rows[i].At(0) == 0 {
+			A = append(A, rows[i])
+		}
+	}
+	if len(A) != 11 {
+		t.Fatalf("column 0 symbol 0 has %d rows, want 11", len(A))
+	}
+	tab := Build(A, 6, 11)
+	real := func(Y int, v uint8) Slice {
+		var s Slice
+		for _, r := range rows {
+			if r.At(Y) == v {
+				s = append(s, r)
+			}
+		}
+		sortRows(s)
+		return s
+	}
+	for Y := 1; Y < 6; Y++ {
+		for v := uint8(0); v < 3; v++ {
+			want := string(rowBytes(real(Y, v)))
+			found := false
+			for _, s := range tab.Cands[Y][v] {
+				if string(rowBytes(s)) == want {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("real slice Y=%d v=%d missing from %d candidates", Y, v, len(tab.Cands[Y][v]))
+			}
+		}
+	}
+	for Y := 1; Y < 6; Y++ {
+		for Z := Y + 1; Z < 6; Z++ {
+			m := tab.Matrix(Y, Z)
+			for v := 0; v < 3; v++ {
+				for w := 0; w < 3; w++ {
+					if m[v][w] == 0 {
+						t.Fatalf("false obstruction: columns (%d,%d) symbols (%d,%d) report no compatible pair: %v", Y, Z, v, w, m)
+					}
+				}
+			}
+			t.Logf("control (%d,%d): %v", Y, Z, m)
+		}
+	}
+}
+
 func pinned(t *testing.T) []Row {
 	t.Helper()
 	r, err := ca.ReadFile("../ca/testdata/CA_12_2_7_3.txt", 3)
@@ -23,7 +90,7 @@ func TestCandidatesAreValid(t *testing.T) {
 	A := pinned(t)
 	for Y := 1; Y < K; Y++ {
 		for v := uint8(0); v < 3; v++ {
-			cands := Completions(A, Y, v)
+			cands := Completions(A, K, 12, Y, v)
 			for _, s := range cands {
 				if len(s) != 12 {
 					t.Fatalf("Y=%d v=%d: %d rows", Y, v, len(s))
@@ -82,7 +149,7 @@ func TestFindsHandBuiltSlices(t *testing.T) {
 	for Y := 1; Y < K; Y++ {
 		for v := uint8(0); v < 3; v++ {
 			got := map[string]bool{}
-			for _, s := range Completions(A, Y, v) {
+			for _, s := range Completions(A, K, 12, Y, v) {
 				got[string(rowBytes(s))] = true
 			}
 			// Brute force a small family: rows of A with Y != v become
