@@ -1,0 +1,18 @@
+{
+  "id": "ca-12-2-7-3-unique",
+  "statement": "Every CA(12; 2, 7, 3) is isomorphic to every other (one class), and no CA(11; 2, 7, 3) exists, so CAN(2, 7, 3) = 12.",
+  "kind": "count",
+  "cert": {
+    "type": "enum",
+    "checker": "in-repo",
+    "independent": "matches every v = 3, N = 10 to 12 cell of Kokkala et al., arXiv 1901.03594, Table 1 (including 1 class at k = 7 and 0 at N = 11, k = 6)",
+    "recheck": [
+      "go test ./internal/classify -count=1 -run 'Kokkala|Pinned|Known'"
+    ]
+  },
+  "literature": {
+    "checked": "2026-11-25",
+    "best_published": "Known: Colbourn, Kéri, Rivas Soriano, Schlage-Puchta (2010); Kokkala et al. (arXiv 1901.03594)",
+    "notes": "Re-proof of a known result, used as a premise."
+  }
+}

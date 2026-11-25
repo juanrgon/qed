@@ -1,0 +1,5 @@
+# Claims and the checkers that grade them need the owner's review.
+/claims/        @juanrgon
+/cmd/verify-*/  @juanrgon
+/cmd/check-*/   @juanrgon
+/.github/       @juanrgon

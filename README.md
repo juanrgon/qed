@@ -1,96 +1,116 @@
 # mathbench
 
-A small, fast Go workbench for computer search in combinatorics, built to
-run on one laptop (an M1 Max). Its first target is covering arrays.
+A small, fast Go framework for finding and checking new results in
+combinatorics on one laptop (an M1 Max). AI coding agents write the
+search code; the framework decides what counts.
+
+Every result is a **claim** with a **certificate**, and its status is
+computed by the program from the evidence, not typed in by a person or an
+agent. Constructions are checked by a standalone verifier. Impossibility
+results need a checkable certificate: clique certificates, an exhaustive
+enumeration that matches published counts, or a SAT proof (LRAT) checked
+by a separate checker.
+
+The first domain is covering arrays. Next up: graphs with no triangles or
+4-cycles, and constant-weight codes (see [Roadmap](#roadmap)).
+
+## Results
+
+From `./wb claims` (run `./wb claims -run` to re-check them all). The
+program never decides whether a result is new; the literature column is a
+dated record of what we checked.
 
 A covering array CA(N; t, k, v) is an N by k table over v symbols where
 every choice of t columns shows every possible t-tuple of symbols in some
 row. CAN(t, k, v) is the smallest N that works.
 
-## Results
-
-Status labels: **confirmed** means code in this repo proves it and you
-can rerun it. **New** means confirmed here, better than any published
-bound we could find, and not yet peer reviewed. Details, test controls
-and the literature check are in [FINDINGS.md](FINDINGS.md).
-
-| Result | Status | Rerun |
+| Result | Computed status | Literature (checked 2026-11-25) |
 |---|---|---|
-| CAN(3, 8, 3) >= 39. No covering array with 8 columns, 3 symbols and strength 3 has 38 or fewer rows. The best published lower bound is 37. | New (computer proof) | `./wb lightslice` (about 5 s) |
-| CAN(4, 9, 3) >= 117 and CAN(5, 10, 3) >= 351, which follow from the row above. Published lower bounds are 111 and 333. | New | follows from CAN(t, k, v) >= v CAN(t-1, k-1, v) |
-| In the best known CA(42; 3, 8, 3), no 6 rows can be replaced by 5 and no 7 rows by 6. So a 41-row array would keep at most 34 of its rows. | Confirmed | `./wb swap -m 7 internal/ca/testdata/CA_42_3_8_3.txt` (about 4 min on 8 cores) |
-| A symmetry-aware search rebuilds a 42-row array in 8 of 8 seeds in about 9 s. Plain search did not get there in any run. | Confirmed (replication: the symmetry comes from the known array) | `./wb search -model shift -reps 14 -seeds 0:8 -moves 15000000 -t0 3 -t1 0.3` |
+| **CAN(3, 8, 3) >= 39.** No covering array with 8 columns, 3 symbols and strength 3 has 38 or fewer rows. | Checked except: one prose lemma (the light-slice reduction) and one in-repo implementation of the slice enumeration | Best published lower bound is 37. No earlier proof of 38 or 39 found; two sources still unread. |
+| **CAN(4, 9, 3) >= 117 and CAN(5, 10, 3) >= 351**, from the row above. | As above, plus a standard published inequality | Published: 111 and 333. |
+| **CA(12; 2, 7, 3) is unique and CAN(2, 7, 3) = 12** (premises of the 39 bound). | Confirmed (matches a published table cell by cell) | Known since 2010; re-proved here. |
+| **No 7 rows of the best known CA(42; 3, 8, 3) can be replaced by 6** (nor 6 by 5, 5 by 4), so a 41-row array keeps at most 34 of its rows. | Confirmed (27 million clique certificates, checked by a standalone checker) | |
+| **Symmetry-aware search rebuilds a 42-row array** in 8 of 8 seeds, about 9 s. Plain search did not in any run. | Confirmed (replication: the symmetry comes from the known array) | Record is 42. |
 
 **What the 39 bound rests on.** If an array had 38 rows, each column
-would have a symbol that appears in exactly 12 rows. Those 12 rows must
-form a CA(12; 2, 7, 3) on the other columns. `wb lightslice` does it in
-two steps:
+would have a symbol that appears in exactly 12 rows, and those rows form a
+CA(12; 2, 7, 3) on the other columns. `./wb lightslice` (about 5 s)
+classifies the small arrays from scratch, pins column 0's 12 rows to the
+unique CA(12; 2, 7, 3), lists every way the other columns' slices can
+look, and finds column pairs that can never agree. The prose step (why
+those conditions must hold) is written out in [FINDINGS.md](FINDINGS.md);
+no machine has checked it yet, which is why the status says so. The slice
+step finds no false contradictions on the 6-column case, where a real
+array exists.
 
-1. It classifies small strength-2 arrays from scratch: no
-   CA(11; 2, 7, 3) exists, and CA(12; 2, 7, 3) is unique up to relabeling.
-   Both facts were published before (Colbourn, Kéri, Rivas Soriano and
-   Schlage-Puchta 2010; Kokkala et al.,
-   [arXiv 1901.03594](https://arxiv.org/abs/1901.03594)); this repo
-   re-proves them rather than trusting them.
-2. It pins column 0's 12 rows to that unique array, lists every way the
-   other columns' 12-row slices can look, and finds column pairs that can
-   never agree.
+## How it works
 
-**Checked so far.** The classifier reproduces a published table of class counts (for
-example, exactly 13 classes of CA(12; 2, 6, 3)). The slice step finds no
-false contradictions on the 6-column case, where a real array exists.
-Both published copies of CA(12; 2, 7, 3) are confirmed isomorphic to the
-class it finds. A search of the literature through November 2026 found
-no earlier proof of 38 or 39. Still open: a second, independent check
-with a SAT solver, and review by a person. See [FINDINGS.md](FINDINGS.md).
+- **Claims** live in [`claims/`](claims/), one JSON file each: the
+  statement, the certificate, premises, unchecked lemmas, published
+  results taken on trust, and the literature check. `internal/core`
+  computes the status: *confirmed*, *checked except ...*, or *claim*.
+- **Standalone checkers** use only the Go standard library, so they share
+  no code with the search. Tests enforce that.
+  - `cmd/verify-ca`: is this file a covering array?
+  - `cmd/check-swap`: are these row-swap certificates valid?
+  - `cmd/check-lrat`: is this LRAT proof of unsatisfiability valid?
+- **CI** re-checks every claim on each push. On a pull request it uses the
+  checkers from `main`, so a branch cannot weaken the judge that grades
+  it. `claims/` and the checkers need the owner's review
+  ([CODEOWNERS](.github/CODEOWNERS)).
+- **SAT** (`internal/sat`): CNF building and CaDiCaL with LRAT proofs.
+  Smoke test: on 10 vertices, 15 edges with no triangle or 4-cycle is
+  found (the Petersen graph) and 16 is proven impossible.
+- **Search**: deterministic seeds with move budgets, an append-only
+  ledger, and symmetry models that tie cells together into orbits. A
+  failed search is logged as "budget exhausted", never as impossibility.
 
-## Design
+## Roadmap
 
-- **Search code is cheap to write; Go does the searching.** Strategies are
-  small Go programs, not answers proposed one at a time.
-- **One plain verifier is the judge.** `internal/ca/verify.go` is naive
-  and shares no code with the fast engine. A solve only counts once it
-  passes there.
-- **Budgets are move counts, not clocks.** The same seed always does the
-  same work, whatever the laptop's temperature.
-- **Structure is pluggable.** A `Model` maps search variables to array
-  cells, so a strategy can freeze cells or tie cells together by symmetry
-  without touching the engine.
-- **Every seed is logged.** `runs/ledger.jsonl` is append-only, and a
-  stopped job resumes by skipping seeds already in it.
+From a design debate on 2026-11-25:
+
+1. Done: SAT and LRAT pipeline, standalone checkers, swap certificates,
+   claims with computed status, CI.
+2. Move covering arrays into a `domains/ca` package behind a tiny core
+   (claims, ledger, a `Searcher` interface), with no speed loss.
+3. New domain: graphs with no triangles or 4-cycles. Reproduce the
+   285-edge record on 74 vertices, then search for 286.
+4. New domain: constant-weight codes. Reproduce 2,992 words for
+   A(23, 6, 10), then search for 2,993.
+5. Check the light-slice step with a direct SAT encoding, so the 39 bound
+   no longer rests on a prose lemma.
 
 ## Commands
 
 ```bash
 go build -o wb ./cmd/wb
-go run ./cmd/verify-ca internal/ca/testdata/CA_42_3_8_3.txt
-./wb verify internal/ca/testdata/CA_42_3_8_3.txt
-./wb swap -m 6 internal/ca/testdata/CA_42_3_8_3.txt
+./wb claims -run
 ./wb lightslice
+./wb swap -m 6 internal/ca/testdata/CA_42_3_8_3.txt
+./wb swap -m 5 -certs - internal/ca/testdata/CA_42_3_8_3.txt | go run ./cmd/check-swap internal/ca/testdata/CA_42_3_8_3.txt /dev/stdin
 ./wb search -model shift -reps 14 -seeds 0:8 -moves 15000000 -t0 3 -t1 0.3
-./wb search -model split -split 13,14,14 -seeds 0:8
-./wb search -n 45 -seeds 0:8
+go run ./cmd/verify-ca internal/ca/testdata/CA_42_3_8_3.txt
 ```
 
-Flags go before the file argument.
+Flags go before the file argument. SAT features need `brew install
+cadical`.
 
 ## Layout
 
-- `internal/ca`: array type, strict parser, the plain verifier, and the
-  requirement index.
-- `internal/swap`: proves whether m rows can be replaced by m - 1. Every
-  case ends as proven impossible (clique or exhaustive coloring), a
-  verified witness, or undetermined.
+- `claims/`: one file per result, plus small artifacts.
+- `cmd/wb`: the CLI. `cmd/verify-ca`, `cmd/check-swap`, `cmd/check-lrat`:
+  standalone checkers.
+- `internal/core`: claims and status computation.
+- `internal/sat`: CNF and CaDiCaL.
+- `internal/ca`: array type, parser, plain verifier, requirement index.
+- `internal/swap`: can m rows be replaced by m - 1? Clique and coloring
+  proofs, with certificates.
 - `internal/classify`: classifies small strength-2 arrays up to
   isomorphism, with every merge backed by a checked relabeling.
 - `internal/lightslice`: the 12-row slice check behind the 39 bound.
 - `internal/engine`: incremental coverage counts (about 8 million cell
-  updates per second per core) and simulated annealing driven by
-  uncovered requirements.
+  updates per second per core) and simulated annealing.
 - `internal/run`: worker pool and JSONL ledger.
-- `cmd/wb`: the CLI.
-- `cmd/verify-ca`: the standalone judge. It uses only the Go standard
-  library, so it shares no code with the search. A test enforces that.
 
 Test arrays come from published sources; see
 [internal/ca/testdata/SOURCES.md](internal/ca/testdata/SOURCES.md).

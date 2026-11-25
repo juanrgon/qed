@@ -11,7 +11,9 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime/pprof"
 	"slices"
@@ -22,6 +24,7 @@ import (
 
 	"github.com/juanrgon/mathbench/internal/ca"
 	"github.com/juanrgon/mathbench/internal/classify"
+	"github.com/juanrgon/mathbench/internal/core"
 	"github.com/juanrgon/mathbench/internal/engine"
 	"github.com/juanrgon/mathbench/internal/lightslice"
 	"github.com/juanrgon/mathbench/internal/run"
@@ -41,6 +44,8 @@ func main() {
 		cmdSearch(os.Args[2:])
 	case "lightslice":
 		cmdLightslice(os.Args[2:])
+	case "claims":
+		cmdClaims(os.Args[2:])
 	default:
 		usage()
 	}
@@ -100,6 +105,12 @@ func cmdSwap(args []string) {
 	if !ca.Verify(a, *t, *v).OK() {
 		die(fmt.Errorf("input is not a covering array"))
 	}
+	// With -certs -, certificates go to stdout and messages to stderr, so
+	// they can be piped straight into check-swap.
+	var msg io.Writer = os.Stdout
+	if *certPath == "-" {
+		msg = os.Stderr
+	}
 	var emit func(swap.Cert)
 	var flush func() error
 	if *certPath != "" {
@@ -107,7 +118,7 @@ func cmdSwap(args []string) {
 		if err != nil {
 			die(err)
 		}
-		f, err := os.Create(*certPath)
+		f, err := createOrStdout(*certPath)
 		if err != nil {
 			die(err)
 		}
@@ -140,15 +151,15 @@ func cmdSwap(args []string) {
 		if err := flush(); err != nil {
 			die(err)
 		}
-		fmt.Printf("  certificates written to %s (%d cliques)\n", *certPath, s.ByClique)
+		fmt.Fprintf(msg, "  certificates written to %s (%d cliques)\n", *certPath, s.ByClique)
 	}
-	fmt.Printf("%d -> %d on %s (N=%d): %d subsets in %s\n", *m, *m-1, filepath.Base(fs.Arg(0)), a.N, s.Subsets, time.Since(t0).Round(time.Millisecond))
-	fmt.Printf("  impossible: %d (clique proof %d, exhaustive coloring %d)\n", s.Impossible(), s.ByClique, s.ByColoring)
-	fmt.Printf("  undetermined (cap hit): %d\n", s.Undetermined)
-	fmt.Printf("  verified witnesses (N=%d arrays): %d\n", a.N-1, len(s.Witnesses))
-	fmt.Printf("  largest U: %d requirements\n", s.MaxU)
+	fmt.Fprintf(msg, "%d -> %d on %s (N=%d): %d subsets in %s\n", *m, *m-1, filepath.Base(fs.Arg(0)), a.N, s.Subsets, time.Since(t0).Round(time.Millisecond))
+	fmt.Fprintf(msg, "  impossible: %d (clique proof %d, exhaustive coloring %d)\n", s.Impossible(), s.ByClique, s.ByColoring)
+	fmt.Fprintf(msg, "  undetermined (cap hit): %d\n", s.Undetermined)
+	fmt.Fprintf(msg, "  verified witnesses (N=%d arrays): %d\n", a.N-1, len(s.Witnesses))
+	fmt.Fprintf(msg, "  largest U: %d requirements\n", s.MaxU)
 	if s.BadWitnesses > 0 {
-		fmt.Printf("  BUG: %d colorings failed verification\n", s.BadWitnesses)
+		fmt.Fprintf(msg, "  BUG: %d colorings failed verification\n", s.BadWitnesses)
 	}
 	if len(s.Witnesses) > 0 {
 		os.MkdirAll(*out, 0o755)
@@ -157,9 +168,77 @@ func cmdSwap(args []string) {
 			if err := w.WriteFile(p); err != nil {
 				die(err)
 			}
-			fmt.Println("  saved", p)
+			fmt.Fprintln(msg, "  saved", p)
 		}
 	}
+}
+
+// cmdClaims prints every claim in claims/ with its computed status. With
+// -run it also re-checks each claim: artifact hashes, then the recheck
+// commands (and the slow ones with -slow). It exits 1 if any check fails.
+func cmdClaims(args []string) {
+	fs := flag.NewFlagSet("claims", flag.ExitOnError)
+	dir := fs.String("dir", "claims", "claims folder")
+	runChecks := fs.Bool("run", false, "re-run every claim's checks")
+	slow := fs.Bool("slow", false, "with -run, also run the slow checks")
+	fs.Parse(args)
+	all, err := core.Load(*dir)
+	if err != nil {
+		die(err)
+	}
+	var ids []string
+	for id := range all {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	failed := 0
+	for _, id := range ids {
+		c := all[id]
+		st, err := core.Compute(all, id)
+		if err != nil {
+			die(err)
+		}
+		fmt.Printf("%s\n  %s\n  status: %s\n", id, c.Statement, st)
+		if c.Literature != nil {
+			fmt.Printf("  literature (checked %s): %s\n", c.Literature.Checked, c.Literature.Best)
+		}
+		if !*runChecks {
+			continue
+		}
+		if c.Cert.Artifact != "" {
+			raw, err := os.ReadFile(c.Cert.Artifact)
+			got := fmt.Sprintf("%x", sha256.Sum256(raw))
+			if err != nil || got != c.Cert.SHA256 {
+				fmt.Printf("  FAIL artifact %s: sha256 %s, claim says %s\n", c.Cert.Artifact, got, c.Cert.SHA256)
+				failed++
+			}
+		}
+		cmds := c.Cert.Recheck
+		if *slow {
+			cmds = append(slices.Clone(cmds), c.Cert.SlowRecheck...)
+		}
+		for _, cmd := range cmds {
+			t0 := time.Now()
+			out, err := exec.Command("bash", "-c", "set -o pipefail; "+cmd).CombinedOutput()
+			if err != nil {
+				fmt.Printf("  FAIL (%s): %s\n%s\n", time.Since(t0).Round(time.Second), cmd, out)
+				failed++
+				continue
+			}
+			fmt.Printf("  ok (%s): %s\n", time.Since(t0).Round(time.Second), cmd)
+		}
+	}
+	if failed > 0 {
+		fmt.Printf("%d checks failed\n", failed)
+		os.Exit(1)
+	}
+}
+
+func createOrStdout(path string) (*os.File, error) {
+	if path == "-" {
+		return os.Stdout, nil
+	}
+	return os.Create(path)
 }
 
 func parseInts(s string) ([]int, error) {

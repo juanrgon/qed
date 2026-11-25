@@ -1,0 +1,27 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # SAT tests skip here (no CaDiCaL); they run on the laptop.
+      - name: Vet and test
+        run: go vet ./... && go test ./...
+      # On a pull request, the judges come from main, not from the branch,
+      # so a branch cannot weaken the checker that grades its own claims.
+      - name: Use main's checkers for claims
+        if: github.event_name == 'pull_request'
+        run: git checkout origin/${{ github.base_ref }} -- cmd/verify-ca cmd/check-swap cmd/check-lrat
+      - name: Re-check every claim
+        run: go run ./cmd/wb claims -run

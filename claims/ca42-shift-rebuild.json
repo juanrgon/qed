@@ -1,0 +1,19 @@
+{
+  "id": "ca42-shift-rebuild",
+  "statement": "Symmetry-aware search (14 orbits of the symbol shift) finds a CA(42; 3, 8, 3); this is one of the 8 arrays found in 8 of 8 seeds.",
+  "kind": "exists",
+  "cert": {
+    "type": "witness",
+    "checker": "standalone",
+    "artifact": "claims/artifacts/CA_42_3_8_3.shift-seed0.txt",
+    "sha256": "4bbf03256f2ee9279ae0c8a66251f30fb853e740cf5a5dbe2be75aed82f3bb8e",
+    "recheck": [
+      "go run ./cmd/verify-ca -t 3 -v 3 claims/artifacts/CA_42_3_8_3.shift-seed0.txt"
+    ]
+  },
+  "literature": {
+    "checked": "2026-11-25",
+    "best_published": "42 (Colbourn, Kéri, Rivas Soriano, Schlage-Puchta 2010)",
+    "notes": "Replication: the symmetry was read off the published array."
+  }
+}

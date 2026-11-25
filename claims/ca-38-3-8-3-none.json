@@ -1,0 +1,22 @@
+{
+  "id": "ca-38-3-8-3-none",
+  "statement": "No CA(38; 3, 8, 3) exists, so CAN(3, 8, 3) >= 39.",
+  "kind": "none",
+  "premises": ["ca-12-2-7-3-unique"],
+  "lemmas": [
+    "light-slice reduction (if N <= 38 every column has a symbol in exactly 12 rows; pinning column 0's slice; the multiset condition between two slices), argued in prose in FINDINGS.md section 1"
+  ],
+  "cert": {
+    "type": "enum",
+    "checker": "in-repo",
+    "recheck": [
+      "go run ./cmd/wb lightslice | grep -q '^RESULT: no CA(38; 3, 8, 3) exists'",
+      "go test ./internal/lightslice -count=1"
+    ]
+  },
+  "literature": {
+    "checked": "2026-11-25",
+    "best_published": "37 <= CAN(3, 8, 3) <= 42 (ca-tools live table, 2026-11-24)",
+    "notes": "Not found in the papers listed in FINDINGS.md. Still unread: Izquierdo-Marquez and Torres-Jimenez 2018 (paywall) and Colbourn's live tables (login)."
+  }
+}

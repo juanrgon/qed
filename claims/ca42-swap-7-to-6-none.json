@@ -1,0 +1,17 @@
+{
+  "id": "ca42-swap-7-to-6-none",
+  "statement": "No 7 rows of the published CA(42; 3, 8, 3) can be replaced by 6 new rows (and likewise 6 by 5, 5 by 4), so a CA(41; 3, 8, 3) keeps at most 34 of its rows.",
+  "kind": "none",
+  "scope": "the array internal/ca/testdata/CA_42_3_8_3.txt, sha256 d92e84fcc068215ef476d98c960d97d9e3a17c1cdb289394e37cf232b23eb5c9",
+  "cert": {
+    "type": "clique-certs",
+    "checker": "standalone",
+    "recheck": [
+      "go run ./cmd/wb swap -m 5 -certs - internal/ca/testdata/CA_42_3_8_3.txt 2>/dev/null | go run ./cmd/check-swap internal/ca/testdata/CA_42_3_8_3.txt /dev/stdin"
+    ],
+    "slow_recheck": [
+      "go run ./cmd/wb swap -m 6 -certs - internal/ca/testdata/CA_42_3_8_3.txt 2>/dev/null | go run ./cmd/check-swap internal/ca/testdata/CA_42_3_8_3.txt /dev/stdin",
+      "go run ./cmd/wb swap -m 7 -certs - internal/ca/testdata/CA_42_3_8_3.txt 2>/dev/null | go run ./cmd/check-swap internal/ca/testdata/CA_42_3_8_3.txt /dev/stdin"
+    ]
+  }
+}

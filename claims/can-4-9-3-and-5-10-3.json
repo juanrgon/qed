@@ -1,0 +1,17 @@
+{
+  "id": "can-4-9-3-and-5-10-3",
+  "statement": "CAN(4, 9, 3) >= 117 and CAN(5, 10, 3) >= 351.",
+  "kind": "bound",
+  "premises": ["ca-38-3-8-3-none"],
+  "outside": [
+    "CAN(t, k, v) >= v * CAN(t-1, k-1, v) (a standard inequality; see for example inequality (7) in Colbourn, Kéri, Rivas Soriano, Schlage-Puchta 2010)"
+  ],
+  "cert": {
+    "type": "derived",
+    "checker": "in-repo"
+  },
+  "literature": {
+    "checked": "2026-11-25",
+    "best_published": "111 and 333 (ca-tools live table CSVs, checked 2026-11-25)"
+  }
+}
