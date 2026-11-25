@@ -19,6 +19,7 @@ import (
 
 	"github.com/juanrgon/mathbench/internal/ca"
 	"github.com/juanrgon/mathbench/internal/engine"
+	"github.com/juanrgon/mathbench/internal/lightslice"
 	"github.com/juanrgon/mathbench/internal/run"
 	"github.com/juanrgon/mathbench/internal/swap"
 )
@@ -34,6 +35,8 @@ func main() {
 		cmdSwap(os.Args[2:])
 	case "search":
 		cmdSearch(os.Args[2:])
+	case "lightslice":
+		cmdLightslice(os.Args[2:])
 	default:
 		usage()
 	}
@@ -153,10 +156,11 @@ func cmdSearch(args []string) {
 	k := fs.Int("k", 8, "columns")
 	v := fs.Int("v", 3, "symbols")
 	n := fs.Int("n", 42, "rows (free model)")
-	model := fs.String("model", "free", "free | split | shift")
+	model := fs.String("model", "free", "free | split | shift | orbit")
+	group := fs.String("group", "c7z3", "group for -model orbit: z3 | c7 | ck | c7z3 | ckz3")
 	split := fs.String("split", "13,14,14", "column-0 symbol counts for -model split")
-	reps := fs.Int("reps", 14, "orbits for -model shift")
-	free := fs.Int("free", 0, "extra free rows for -model shift")
+	reps := fs.Int("reps", 14, "orbits for -model shift or orbit")
+	free := fs.Int("free", 0, "extra free rows for -model shift or orbit")
 	seeds := fs.String("seeds", "0:8", "seed or lo:hi range")
 	p := engine.DefaultParams()
 	fs.Int64Var(&p.Moves, "moves", p.Moves, "move budget per seed")
@@ -190,6 +194,12 @@ func cmdSearch(args []string) {
 			return engine.SplitColumn0(*k, *v, sp)
 		case "shift":
 			return engine.ShiftOrbits(*reps, *free, *k, *v)
+		case "orbit":
+			g, err := engine.Group(*group, *k, *v)
+			if err != nil {
+				die(err)
+			}
+			return engine.Orbits(*reps, *free, *k, *v, *group, g)
 		}
 		die(fmt.Errorf("unknown model %q", *model))
 		return nil
@@ -234,6 +244,47 @@ func cmdSearch(args []string) {
 		return r
 	})
 	summarize(recs, time.Since(t0))
+}
+
+func cmdLightslice(args []string) {
+	fs := flag.NewFlagSet("lightslice", flag.ExitOnError)
+	fs.Parse(args)
+	if fs.NArg() != 1 {
+		die(fmt.Errorf("need the CA(12; 2, 7, 3) file"))
+	}
+	r, err := ca.ReadFile(fs.Arg(0), 3)
+	if err != nil {
+		die(err)
+	}
+	if r.N != 12 || r.K != 7 || !ca.Verify(r, 2, 3).OK() {
+		die(fmt.Errorf("input is not a CA(12; 2, 7, 3)"))
+	}
+	t0 := time.Now()
+	t := lightslice.Build(lightslice.Pinned(r))
+	fmt.Printf("candidate light slices per column (symbol 0,1,2), found in %s:\n", time.Since(t0).Round(time.Millisecond))
+	for Y := 1; Y < lightslice.K; Y++ {
+		fmt.Printf("  col %d: %d %d %d\n", Y, len(t.Cands[Y][0]), len(t.Cands[Y][1]), len(t.Cands[Y][2]))
+	}
+	bad := 0
+	fmt.Println("compatible pairs per column pair (rows v = symbol in Y, cols w = symbol in Z):")
+	for Y := 1; Y < lightslice.K; Y++ {
+		for Z := Y + 1; Z < lightslice.K; Z++ {
+			m := t.Matrix(Y, Z)
+			total := 0
+			for _, row := range m {
+				for _, x := range row {
+					total += x
+				}
+			}
+			tag := ""
+			if total == 0 {
+				tag = "  <- no compatible pair: obstruction"
+				bad++
+			}
+			fmt.Printf("  (%d,%d): %v%s\n", Y, Z, m, tag)
+		}
+	}
+	fmt.Printf("%d of 21 column pairs are full obstructions\n", bad)
 }
 
 func summarize(recs []run.Record, wall time.Duration) {

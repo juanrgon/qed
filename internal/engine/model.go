@@ -79,19 +79,96 @@ func SplitColumn0(k, v int, split []int) *Model {
 // ShiftOrbits builds reps orbits under the symbol shift x -> x+1 mod v
 // (each orbit is v rows), plus free rows with no symmetry. The published
 // CA(42;3,8,3) is exactly 14 such orbits.
+//
+// Watch out: the shift moves every requirement to another one on the same
+// columns, and one row covers at most one of those. So a gap left by the
+// orbits needs v free rows to fix, and fewer than v free rows add nothing.
 func ShiftOrbits(reps, free, k, v int) *Model {
-	n := reps*v + free
-	m := newModel(fmt.Sprintf("shift(reps=%d,free=%d)", reps, free), n, k, v)
+	g, _ := Group("z3", k, v)
+	return Orbits(reps, free, k, v, "shift", g)
+}
+
+// Elem is one group element: it sends column c to Perm[c] and adds Shift
+// to every symbol.
+type Elem struct {
+	Perm  []int
+	Shift uint8
+}
+
+// Group returns a named group acting on k columns and v symbols:
+//
+//	z3    symbol shifts only (order v)
+//	c7    cycle columns 1..k-1, column 0 fixed (order k-1)
+//	ck    cycle all k columns (order k)
+//	c7z3  c7 combined with symbol shifts (order (k-1)*v)
+//	ckz3  ck combined with symbol shifts (order k*v)
+func Group(name string, k, v int) ([]Elem, error) {
+	cyc := func(fix0 bool) [][]int {
+		n := k
+		if fix0 {
+			n = k - 1
+		}
+		var perms [][]int
+		for g := 0; g < n; g++ {
+			p := make([]int, k)
+			for c := 0; c < k; c++ {
+				switch {
+				case fix0 && c == 0:
+					p[c] = 0
+				case fix0:
+					p[c] = 1 + (c-1+g)%n
+				default:
+					p[c] = (c + g) % n
+				}
+			}
+			perms = append(perms, p)
+		}
+		return perms
+	}
+	id := make([]int, k)
+	for c := range id {
+		id[c] = c
+	}
+	var perms [][]int
+	shifts := 1
+	switch name {
+	case "z3":
+		perms, shifts = [][]int{id}, v
+	case "c7":
+		perms = cyc(true)
+	case "ck":
+		perms = cyc(false)
+	case "c7z3":
+		perms, shifts = cyc(true), v
+	case "ckz3":
+		perms, shifts = cyc(false), v
+	default:
+		return nil, fmt.Errorf("unknown group %q", name)
+	}
+	var out []Elem
+	for _, p := range perms {
+		for s := 0; s < shifts; s++ {
+			out = append(out, Elem{Perm: p, Shift: uint8(s)})
+		}
+	}
+	return out, nil
+}
+
+// Orbits builds reps orbits of rows under group g (each orbit is len(g)
+// rows), plus free rows with no symmetry.
+func Orbits(reps, free, k, v int, name string, g []Elem) *Model {
+	n := reps*len(g) + free
+	m := newModel(fmt.Sprintf("%s(reps=%d,free=%d)", name, reps, free), n, k, v)
 	for i := 0; i < reps; i++ {
 		for c := 0; c < k; c++ {
-			cells := make([]Image, v)
-			for s := 0; s < v; s++ {
-				cells[s] = Image{Row: int32(i*v + s), Col: int32(c), Shift: uint8(s)}
+			cells := make([]Image, len(g))
+			for j, e := range g {
+				cells[j] = Image{Row: int32(i*len(g) + j), Col: int32(e.Perm[c]), Shift: e.Shift}
 			}
 			m.addVar(cells...)
 		}
 	}
-	for r := reps * v; r < n; r++ {
+	for r := reps * len(g); r < n; r++ {
 		for c := 0; c < k; c++ {
 			m.addVar(Image{Row: int32(r), Col: int32(c)})
 		}
