@@ -13,6 +13,6 @@
   "literature": {
     "checked": "2026-11-25",
     "best_published": "ex(74; {C3, C4}) >= 285 (Goedgebeur, Jooken, Joret, Van den Eede, arXiv 2508.05562v2, Sep 2026)",
-    "notes": "A scoped search result, not a bound. Each of the 3 x (74 + 2701) cases was UNSAT with a text LRAT proof accepted by cmd/check-lrat; k = 1 is implied by k = 2 but was also run."
+    "notes": "A scoped search result, not a bound. Each of the 3 x 2701 cases was UNSAT with a text LRAT proof accepted by both cmd/check-lrat and cake_lpr (formally verified), rerun 2026-11-25. k = 1 is implied by k = 2 (freeing more edges only adds options)."
   }
 }
