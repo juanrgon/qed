@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -25,9 +26,11 @@ import (
 	"github.com/juanrgon/mathbench/internal/ca"
 	"github.com/juanrgon/mathbench/internal/classify"
 	"github.com/juanrgon/mathbench/internal/core"
+	"github.com/juanrgon/mathbench/internal/domains/girth5"
 	"github.com/juanrgon/mathbench/internal/engine"
 	"github.com/juanrgon/mathbench/internal/lightslice"
 	"github.com/juanrgon/mathbench/internal/run"
+	"github.com/juanrgon/mathbench/internal/sat"
 	"github.com/juanrgon/mathbench/internal/swap"
 )
 
@@ -46,13 +49,15 @@ func main() {
 		cmdLightslice(os.Args[2:])
 	case "claims":
 		cmdClaims(os.Args[2:])
+	case "girth5-reroute":
+		cmdGirth5Reroute(os.Args[2:])
 	default:
 		usage()
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: wb verify|swap|search [flags]  (wb <cmd> -h for flags)")
+	fmt.Fprintln(os.Stderr, "usage: wb verify|swap|search|lightslice|claims|girth5-reroute [flags]  (wb <cmd> -h for flags)")
 	os.Exit(2)
 }
 
@@ -231,6 +236,138 @@ func cmdClaims(args []string) {
 	if failed > 0 {
 		fmt.Printf("%d checks failed\n", failed)
 		os.Exit(1)
+	}
+}
+
+// cmdGirth5Reroute tries every k-subset R of vertices of a graph: delete
+// the edges touching R and ask CaDiCaL whether edges touching R can be
+// added back to reach -target edges with girth at least 5. A SAT answer
+// is saved and must pass cmd/verify-girth5. An UNSAT answer must come with
+// an LRAT proof that cmd/check-lrat accepts; otherwise it counts as a
+// failure, not as a proof.
+func cmdGirth5Reroute(args []string) {
+	fs := flag.NewFlagSet("girth5-reroute", flag.ExitOnError)
+	k := fs.Int("k", 1, "vertices to reroute at once")
+	target := fs.Int("target", 0, "edges wanted (default: current + 1)")
+	line := fs.Int("line", 1, "which graph6 line of FILE to use (1-based)")
+	workers := fs.Int("workers", 8, "parallel solver jobs")
+	outDir := fs.String("out", "runs/girth5", "where proofs, found graphs and the summary go")
+	fs.Parse(args)
+	if fs.NArg() != 1 {
+		die(fmt.Errorf("need a graph6 file"))
+	}
+	raw, err := os.ReadFile(fs.Arg(0))
+	if err != nil {
+		die(err)
+	}
+	lines := strings.Fields(string(raw))
+	if *line < 1 || *line > len(lines) {
+		die(fmt.Errorf("file has %d graphs", len(lines)))
+	}
+	g6 := lines[*line-1]
+	g, err := girth5.ParseGraph6(g6)
+	if err != nil {
+		die(err)
+	}
+	if *target == 0 {
+		*target = g.Edges() + 1
+	}
+	sum := fmt.Sprintf("%x", sha256.Sum256([]byte(g6)))
+	dir := filepath.Join(*outDir, sum[:12], fmt.Sprintf("k%d-t%d", *k, *target))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		die(err)
+	}
+	checker := filepath.Join(*outDir, "bin", "check-lrat")
+	if out, err := exec.Command("go", "build", "-o", checker, "./cmd/check-lrat").CombinedOutput(); err != nil {
+		die(fmt.Errorf("building check-lrat: %v\n%s", err, out))
+	}
+	n := len(g)
+	fmt.Printf("graph sha256=%s n=%d edges=%d; rerouting every %d-subset toward %d edges\n", sum, n, g.Edges(), *k, *target)
+
+	var subsets [][]int
+	var rec func(start int, cur []int)
+	rec = func(start int, cur []int) {
+		if len(cur) == *k {
+			subsets = append(subsets, slices.Clone(cur))
+			return
+		}
+		for v := start; v < n; v++ {
+			rec(v+1, append(cur, v))
+		}
+	}
+	rec(0, nil)
+
+	type result struct {
+		R      []int
+		Status string // unsat-checked | sat | error
+		Detail string
+	}
+	jobs := make(chan []int)
+	results := make(chan result)
+	var wg sync.WaitGroup
+	for w := 0; w < *workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for R := range jobs {
+				p := girth5.NewReroute(g, R, *target)
+				name := strings.Trim(strings.ReplaceAll(fmt.Sprint(R), " ", "-"), "[]")
+				cnf := filepath.Join(dir, "r"+name+".cnf")
+				proof := filepath.Join(dir, "r"+name+".lrat")
+				res, err := sat.Solve(p.CNF, cnf, proof)
+				switch {
+				case err != nil:
+					results <- result{R, "error", err.Error()}
+				case res.Sat:
+					h := p.Decode(res.Model)
+					path := filepath.Join(dir, "found-r"+name+".g6")
+					os.WriteFile(path, []byte(h.Graph6()+"\n"), 0o644)
+					results <- result{R, "sat", path}
+				default:
+					out, err := exec.Command(checker, cnf, proof).CombinedOutput()
+					if err != nil {
+						results <- result{R, "error", "proof rejected: " + strings.TrimSpace(string(out))}
+						continue
+					}
+					os.Remove(cnf)
+					os.Remove(proof)
+					results <- result{R, "unsat-checked", strings.TrimSpace(string(out))}
+				}
+			}
+		}()
+	}
+	go func() {
+		for _, R := range subsets {
+			jobs <- R
+		}
+		close(jobs)
+		wg.Wait()
+		close(results)
+	}()
+	t0 := time.Now()
+	counts := map[string]int{}
+	logf, err := os.Create(filepath.Join(dir, "summary.jsonl"))
+	if err != nil {
+		die(err)
+	}
+	enc := json.NewEncoder(logf)
+	done := 0
+	for r := range results {
+		done++
+		counts[r.Status]++
+		enc.Encode(r)
+		if r.Status != "unsat-checked" {
+			fmt.Printf("  R=%v: %s %s\n", r.R, strings.ToUpper(r.Status), r.Detail)
+		}
+		if done%250 == 0 {
+			fmt.Printf("  %d/%d done (%s)\n", done, len(subsets), time.Since(t0).Round(time.Second))
+		}
+	}
+	logf.Close()
+	fmt.Printf("%d subsets in %s: %d UNSAT with checked proofs, %d SAT, %d errors\n",
+		len(subsets), time.Since(t0).Round(time.Second), counts["unsat-checked"], counts["sat"], counts["error"])
+	if counts["sat"] > 0 {
+		fmt.Println("SAT graphs were saved; check them with: go run ./cmd/verify-girth5 FILE")
 	}
 }
 
