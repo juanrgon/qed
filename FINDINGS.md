@@ -70,8 +70,28 @@ Not re-proved here.
   closest method (balanced arrays). Its full text never mentions the
   8-column ternary case.
 - Two web searches found no bound of 38 or 39.
-- Not yet checked: their 2018 orderly-algorithm paper
-  (doi:10.1142/S1793830918500118), and Colbourn's own tables (login wall).
+
+Second pass (2026-11-25), reading full texts with pdftotext:
+- Colbourn, Kéri, Rivas Soriano, Schlage-Puchta (2010), ternary table:
+  row (8, 3) reads "36-42". Row (7, 3) is 36-40, row (9, 3) is 39-45.
+- Izquierdo-Marquez and Torres-Jimenez 2019, full text: only
+  CAN(3,7,3) >= 37 and CAN(3,9,3) >= 40 for t = 3, v = 3. The 37 for
+  k = 8 follows from k = 7 by monotonicity. Their juxtaposition method
+  would apply to k = 8, but they never ran it there.
+- Kampel's 2024 thesis (TU Wien) classifies ternary strength-3 arrays
+  only up to N = 33. Hiess's 2024 thesis has no k = 8 ternary result.
+- Hiess and Kampel 2025, full text: no ternary strength-3 result.
+- Grömping 2026 (BHT report, implementing the Colbourn tables): no
+  lower bound for this case.
+- Sitjar, Nov 2026 (upper bounds, strengths 3 to 6): no ternary
+  strength-3 array with 8 columns, so nothing contradicts the bound.
+- Searches for "CA(37;3,8,3)", "CA(38;3,8,3)", "CAN(3,8,3)", and AI
+  results (AlphaEvolve and similar) found nothing.
+- Still unread: the 2018 orderly-algorithm paper
+  (doi:10.1142/S1793830918500118, paywall; the 2025 paper credits that
+  line of work with new CANs such as CAN(3,14,3) = 45, and the later
+  2019 paper still treats k = 7 as open at 36), and Colbourn's live
+  tables (login wall).
 
 **Corollaries.** CAN(t, k, v) >= v * CAN(t-1, k-1, v) gives
 CAN(4, 9, 3) >= 117 and CAN(5, 10, 3) >= 351. The live CSVs show floors
