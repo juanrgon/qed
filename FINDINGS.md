@@ -33,18 +33,19 @@ the 21 column pairs have zero compatible pairs for all 9 (v, w), for
 example columns (1, 4). Since columns 1 and 4 must both have light
 symbols, no CA(38; 3, 8, 3) exists. Runtime: about 4 seconds.
 
-**Independence.** The argument came from the Bullpen debate (Significance
-Judge, then Feasibility Engineer). This repo's check uses a different
-method from the panelists': it builds slices column by column from the
-covering rule alone, with no isomorphism code and no balance assumption.
-It matches their numbers exactly:
+**Independence.** The argument was first checked with several quick,
+separate exploratory scripts (not in this repo). The check here uses a
+different method: it builds slices column by column from the covering
+rule alone, with no isomorphism code and no balance assumption. It
+matches the exploratory numbers exactly:
 
-- Slice counts 4 / 96 / 96 and 8 / 8 / 8 per column (panel: 96, 4, 8).
-- Table copy: obstructions (1,4) (1,5) (3,6) (3,7) (4,5) (6,7). This
-  matches the Feasibility Engineer's list.
+- Slice counts 4 / 96 / 96 and 8 / 8 / 8 per column.
+- Table copy of CA(12; 2, 7, 3): obstructions (1,4) (1,5) (3,6) (3,7)
+  (4,5) (6,7).
 - Kokkala copy: obstructions (1,5) (1,6) (2,4) (2,7) (4,7) (5,6), and the
-  control pair (1,2) gives the diagonal (4, 2, 4). This matches the
-  Problem Scout's list and the Judge's matrix.
+  control pair (1,2) gives the diagonal (4, 2, 4). The two copies are the
+  same array up to relabeling, so different pair lists are expected; the
+  count, 6 of 21, is the same.
 
 Tests:
 - Every slice found passes the plain verifier.
@@ -112,9 +113,9 @@ conflicting requirements. There were no undetermined cases.
 
 | M -> M-1 | subsets | time (8 cores) | result |
 |---|---|---|---|
-| 3 -> 2 | 11,480 | <1 s | impossible (reproduces panel) |
-| 4 -> 3 | 111,930 | <1 s | impossible (reproduces panel) |
-| 5 -> 4 | 850,668 | ~3 s | impossible (reproduces panel) |
+| 3 -> 2 | 11,480 | <1 s | impossible (reproduces an earlier quick check) |
+| 4 -> 3 | 111,930 | <1 s | impossible (reproduces an earlier quick check) |
+| 5 -> 4 | 850,668 | ~3 s | impossible (reproduces an earlier quick check) |
 | 6 -> 5 | 5,245,786 | 29 s | impossible (new) |
 | 7 -> 6 | 26,978,328 | 3 m 35 s | impossible (new) |
 
@@ -136,7 +137,7 @@ Confirmed on this machine, with 8 seeds per configuration.
   shift model at T = 1..0.05 never solves.
 - Column-cycle groups (c7 with 6 orbits, ck with 5 orbits + 2 free) did
   not rebuild 42 on a short budget.
-- At 45 rows the plain engine fails like the panel's naive annealer did
+- At 45 rows the plain engine fails, like an earlier naive annealer did
   (0 of 8 solved, best 1 to 2 missing). I did not run the plain engine
   head to head against that annealer at equal wall time, so there is no
   claim that it is better. The speed wins here are the swap checker,
@@ -151,22 +152,22 @@ Confirmed on this machine, with 8 seeds per configuration.
   13 orbits alone form a shift-invariant CA(39; 3, 8, 3). After result 1,
   39 is exactly the next open size, so this is not a 41-row search at
   all. All 8 seeds stalled at exactly 18 missing (6 orbits), which is a
-  first data point on shift-invariant 39-row arrays. The debate's
-  synthesis still recommends this run as a 41-row test. It isn't one.
+  first data point on shift-invariant 39-row arrays. It looks like a
+  41-row test, but it isn't one.
 - **Shift orbits + 5 free rows (12 + 5):** all 40 seeds stalled at
   exactly 20 missing, which points to another structural floor. Not yet
   explained.
-- **Fixing column 0's symbol split** (the first debate's "five splits")
-  loses nothing, but it also gains almost nothing over plain search. It
+- **Fixing column 0's symbol split** (one of five splits up to
+  relabeling) loses nothing, but it also gains almost nothing over plain search. It
   is not the structural lever it sounded like.
 
 ## Open next steps
 
 1. Firm up result 1 (see the list above), then write a short note.
-   Posting it or contacting the table maintainer is a public step that
-   needs Juan's OK.
-2. CA(39; 3, 8, 3): with every column 13/13/13 now forced, each slice is
-   a CA(13; 2, 7, 3), and there are 24,934 classes of those. The same
-   slice method could settle 39, which would make 40 the bound.
+2. CA(39; 3, 8, 3): each column splits 13/13/13 or 12/13/14. The
+   obstructions above already limit which columns can have a 12-row
+   symbol. Columns with no 12-row symbol have three CA(13; 2, 7, 3)
+   slices, and there are many thousands of classes of those. Extending the slice
+   method to 13-row slices could settle 39, which would make 40 the bound.
 3. For 41 rows: try groups that do not trap free rows, and enumerate tiny
    models exactly (c7z3 at 42 has only 16 variables).
