@@ -74,16 +74,45 @@ func plainGirthCheck(adj [][]bool) (edges int, ok bool) {
 	return edges, true
 }
 
+// checkLRAT runs cmd/check-lrat and, when it is installed, cake_lpr. The
+// two must agree; the result is nil only if both accept.
 func checkLRAT(t *testing.T, cnf, proof string) error {
 	t.Helper()
 	out, err := exec.Command("go", "run", "../../cmd/check-lrat", cnf, proof).CombinedOutput()
+	var ours error
 	if err != nil {
-		return errors.New(strings.TrimSpace(string(out)))
-	}
-	if !strings.HasPrefix(string(out), "VERIFIED UNSAT") {
+		ours = errors.New(strings.TrimSpace(string(out)))
+	} else if !strings.HasPrefix(string(out), "VERIFIED UNSAT") {
 		t.Fatalf("unexpected checker output: %s", out)
 	}
-	return nil
+	bin, ok := CakeLPR()
+	if !ok {
+		return ours
+	}
+	cake := CheckCake(bin, cnf, proof)
+	if (ours == nil) != (cake == nil) {
+		t.Fatalf("checkers disagree: check-lrat=%v cake_lpr=%v", ours, cake)
+	}
+	return ours
+}
+
+func TestCakeLPRSeesFailures(t *testing.T) {
+	bin, ok := CakeLPR()
+	if !ok {
+		t.Skip("cake_lpr not installed")
+	}
+	dir := t.TempDir()
+	cnf := filepath.Join(dir, "f.cnf")
+	os.WriteFile(cnf, []byte("p cnf 2 4\n1 2 0\n1 -2 0\n-1 2 0\n-1 -2 0\n"), 0o644)
+	good, bad := filepath.Join(dir, "g.lrat"), filepath.Join(dir, "b.lrat")
+	os.WriteFile(good, []byte("5 1 0 1 2 0\n6 0 5 3 4 0\n"), 0o644)
+	os.WriteFile(bad, []byte("5 1 0 1 0\n6 0 5 3 4 0\n"), 0o644)
+	if err := CheckCake(bin, cnf, good); err != nil {
+		t.Fatalf("good proof rejected: %v", err)
+	}
+	if err := CheckCake(bin, cnf, bad); err == nil {
+		t.Fatal("bad proof accepted (cake_lpr exits 0 on failure; the output must be read)")
+	}
 }
 
 // The step 0 smoke test: on 10 vertices, 15 edges with no triangle or

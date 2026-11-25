@@ -54,13 +54,21 @@ array exists.
   - `cmd/verify-ca`: is this file a covering array?
   - `cmd/check-swap`: are these row-swap certificates valid?
   - `cmd/check-lrat`: is this LRAT proof of unsatisfiability valid?
-- **CI** re-checks every claim on each push. On a pull request it uses the
-  checkers from `main`, so a branch cannot weaken the judge that grades
-  it. `claims/` and the checkers need the owner's review
-  ([CODEOWNERS](.github/CODEOWNERS)).
+  - `cmd/verify-girth5`: does this graph have no triangle or 4-cycle?
+- **No human review; the ratchet is the gate.** On every push and pull
+  request, CI runs [`scripts/ratchet.sh`](scripts/ratchet.sh): the
+  previous commit's checker tests (good certificates accepted, damaged
+  ones rejected) must pass against the new checkers, and every claim is
+  re-graded by the previous commit's checkers. Checkers can get stricter,
+  never weaker, and a change cannot weaken the judge and grade its own
+  claims in the same step. (Tested: weakening `verify-ca` and switching
+  off its own test is caught.)
 - **SAT** (`internal/sat`): CNF building and CaDiCaL with LRAT proofs.
-  Smoke test: on 10 vertices, 15 edges with no triangle or 4-cycle is
-  found (the Petersen graph) and 16 is proven impossible.
+  Every proof is checked by `cmd/check-lrat` and, when installed, also by
+  [cake_lpr](https://github.com/tanyongkiam/cake_lpr), a formally
+  verified checker; the two must agree. Smoke test: on 10 vertices, 15
+  edges with no triangle or 4-cycle is found (the Petersen graph) and 16
+  is proven impossible.
 - **Search**: deterministic seeds with move budgets, an append-only
   ledger, and symmetry models that tie cells together into orbits. A
   failed search is logged as "budget exhausted", never as impossibility.
@@ -93,7 +101,9 @@ go run ./cmd/verify-ca internal/ca/testdata/CA_42_3_8_3.txt
 ```
 
 Flags go before the file argument. SAT features need `brew install
-cadical`.
+cadical`. For the second proof checker, build
+[cake_lpr](https://github.com/tanyongkiam/cake_lpr) with `make` and put
+it on your PATH (or set `MATHBENCH_CAKE_LPR`).
 
 ## Layout
 

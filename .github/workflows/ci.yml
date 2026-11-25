@@ -18,13 +18,15 @@ jobs:
       # SAT tests skip here (no CaDiCaL); they run on the laptop.
       - name: Vet and test
         run: go vet ./... && go test ./...
-      # On a pull request, the judges come from main, not from the branch,
-      # so a branch cannot weaken the checker that grades its own claims.
-      - name: Use main's checkers for claims
-        if: github.event_name == 'pull_request'
+      # No human review: the ratchet is the gate. The previous commit's
+      # checker tests must pass against the new checkers, and every claim
+      # is graded by the previous commit's checkers. Checkers can get
+      # stricter, never weaker.
+      - name: Ratchet
         run: |
-          for d in $(git ls-tree -d --name-only origin/${{ github.base_ref }} cmd/ | grep -E '^cmd/(verify|check)-'); do
-            git checkout origin/${{ github.base_ref }} -- "$d"
-          done
-      - name: Re-check every claim
-        run: go run ./cmd/wb claims -run
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base=origin/${{ github.base_ref }}
+          else
+            base=${{ github.event.before }}
+          fi
+          scripts/ratchet.sh "$base"

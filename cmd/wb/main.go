@@ -255,6 +255,7 @@ func cmdGirth5Reroute(args []string) {
 	line := fs.Int("line", 1, "which graph6 line of FILE to use (1-based)")
 	workers := fs.Int("workers", 8, "parallel solver jobs")
 	outDir := fs.String("out", "runs/girth5", "where proofs, found graphs and the summary go")
+	noCake := fs.Bool("no-cake", false, "skip the cake_lpr check even if it is installed")
 	fs.Parse(args)
 	if fs.NArg() != 1 {
 		die(fmt.Errorf("need a graph6 file"))
@@ -284,8 +285,17 @@ func cmdGirth5Reroute(args []string) {
 	if out, err := exec.Command("go", "build", "-o", checker, "./cmd/check-lrat").CombinedOutput(); err != nil {
 		die(fmt.Errorf("building check-lrat: %v\n%s", err, out))
 	}
+	// When cake_lpr (a formally verified checker) is installed, every
+	// proof must pass both checkers.
+	cake, _ := sat.CakeLPR()
+	if *noCake {
+		cake = ""
+	}
 	n := len(g)
 	fmt.Printf("graph sha256=%s n=%d edges=%d; rerouting every %d-subset toward %d edges\n", sum, n, g.Edges(), *k, *target)
+	if cake != "" {
+		fmt.Println("proofs are checked by cmd/check-lrat and by cake_lpr at", cake)
+	}
 
 	var subsets [][]int
 	var rec func(start int, cur []int)
@@ -331,6 +341,13 @@ func cmdGirth5Reroute(args []string) {
 					if err != nil {
 						results <- result{R, "error", "proof rejected: " + strings.TrimSpace(string(out))}
 						continue
+					}
+					if cake != "" {
+						if err := sat.CheckCake(cake, cnf, proof); err != nil {
+							results <- result{R, "error", err.Error()}
+							continue
+						}
+						out = append(out, []byte(" + cake_lpr: s VERIFIED UNSAT")...)
 					}
 					os.Remove(cnf)
 					os.Remove(proof)

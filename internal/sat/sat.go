@@ -110,6 +110,40 @@ type Result struct {
 // ErrNoSolver means CaDiCaL is not installed.
 var ErrNoSolver = errors.New("cadical not found (brew install cadical)")
 
+// CakeLPR finds the cake_lpr proof checker (a formally verified LRAT
+// checker built with CakeML): $MATHBENCH_CAKE_LPR, then PATH, then
+// ~/github.com/tanyongkiam/cake_lpr/cake_lpr.
+func CakeLPR() (string, bool) {
+	if p := os.Getenv("MATHBENCH_CAKE_LPR"); p != "" {
+		return p, true
+	}
+	if p, err := exec.LookPath("cake_lpr"); err == nil {
+		return p, true
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		p := home + "/github.com/tanyongkiam/cake_lpr/cake_lpr"
+		if _, err := os.Stat(p); err == nil {
+			return p, true
+		}
+	}
+	return "", false
+}
+
+// CheckCake runs cake_lpr on a formula and proof. cake_lpr exits 0 even
+// when a proof fails, so success is only the line "s VERIFIED UNSAT".
+func CheckCake(bin, cnfPath, proofPath string) error {
+	out, err := exec.Command(bin, cnfPath, proofPath).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("cake_lpr: %v: %s", err, bytes.TrimSpace(out))
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.TrimSpace(line) == "s VERIFIED UNSAT" {
+			return nil
+		}
+	}
+	return fmt.Errorf("cake_lpr rejected the proof: %s", bytes.TrimSpace(out))
+}
+
 // SolveFast is Solve without a proof, for search loops where an UNSAT
 // answer is only a hint and never becomes a claim.
 func SolveFast(f *CNF, cnfPath string) (Result, error) {
