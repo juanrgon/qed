@@ -57,6 +57,24 @@ func TestKnownCounts(t *testing.T) {
 	t.Logf("classes per column count: N=11 %v, N=12 %v", c11, c12)
 }
 
+// Every cell of Kokkala et al., arXiv 1901.03594, Table 1 for v = 3 and
+// N = 10, 11, 12 (number of inequivalent CA(N; 2, k, 3), k = 2, 3, ...).
+func TestKokkalaTable1(t *testing.T) {
+	table := map[int][]int{
+		10: {1, 3, 2, 0},
+		11: {3, 20, 27, 3, 0},
+		12: {7, 134, 987, 891, 13, 1, 0},
+	}
+	for n, want := range table {
+		got := counts(n, len(want)+1)[1:] // drop k = 1
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("N=%d k=%d: %d classes, table says %d", n, i+2, got[i], want[i])
+			}
+		}
+	}
+}
+
 // The light-slice proof pins column 0's slice to the table's copy of
 // CA(12; 2, 7, 3). That is only safe if every CA(12; 2, 7, 3) is
 // isomorphic to it, and if no CA(11; 2, 7, 3) exists.

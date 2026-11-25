@@ -74,10 +74,11 @@ al., [arXiv 1901.03594](https://arxiv.org/abs/1901.03594)), and
 - `wb lightslice` now pins the class it found itself, not a file. Given
   either published copy, it first checks that the copy is isomorphic to
   that class.
-- Controls that match published counts: the 9-row, 4-column array is
-  unique; there is no CA(11; 2, 6, 3); and there are exactly 13 classes
-  of CA(12; 2, 6, 3), the count in Izquierdo-Marquez and Torres-Jimenez
-  2019. 50 random relabelings of the 12-row array all land in one class.
+- Controls that match published counts: every v = 3 cell of Kokkala et
+  al., Table 1 for N = 10, 11 and 12 (16 cells, up to 987 classes),
+  including 13 classes of CA(12; 2, 6, 3), which Izquierdo-Marquez and
+  Torres-Jimenez 2019 also report. The 9-row, 4-column array is unique.
+  50 random relabelings of the 12-row array all land in one class.
 
 Each enumeration has one implementation in this repo, plus the controls
 above. A second, independent check (a direct SAT encoding with a checked

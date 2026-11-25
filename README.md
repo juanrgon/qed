@@ -36,7 +36,7 @@ two steps:
    other columns' 12-row slices can look, and finds column pairs that can
    never agree.
 
-**Checked so far.** The classifier reproduces published counts (for
+**Checked so far.** The classifier reproduces a published table of class counts (for
 example, exactly 13 classes of CA(12; 2, 6, 3)). The slice step finds no
 false contradictions on the 6-column case, where a real array exists.
 Both published copies of CA(12; 2, 7, 3) are confirmed isomorphic to the
