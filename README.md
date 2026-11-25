@@ -63,6 +63,7 @@ with a SAT solver, and review by a person. See [FINDINGS.md](FINDINGS.md).
 
 ```bash
 go build -o wb ./cmd/wb
+go run ./cmd/verify-ca internal/ca/testdata/CA_42_3_8_3.txt
 ./wb verify internal/ca/testdata/CA_42_3_8_3.txt
 ./wb swap -m 6 internal/ca/testdata/CA_42_3_8_3.txt
 ./wb lightslice
@@ -88,6 +89,8 @@ Flags go before the file argument.
   uncovered requirements.
 - `internal/run`: worker pool and JSONL ledger.
 - `cmd/wb`: the CLI.
+- `cmd/verify-ca`: the standalone judge. It uses only the Go standard
+  library, so it shares no code with the search. A test enforces that.
 
 Test arrays come from published sources; see
 [internal/ca/testdata/SOURCES.md](internal/ca/testdata/SOURCES.md).
