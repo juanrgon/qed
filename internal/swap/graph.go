@@ -17,6 +17,8 @@ type solver struct {
 	adj   []uint64 // n*words
 	deg   []int
 	nodes int64
+	// clique holds the vertices of the last clique hasClique found.
+	clique []int
 	// coloring state
 	col []int
 	sat [][]int8 // sat[v][c] = neighbors of v with color c
@@ -58,7 +60,11 @@ func (s *solver) row(i int) []uint64 { return s.adj[i*s.words : (i+1)*s.words] }
 // hasClique reports whether the graph has a clique of size m. It returns
 // false if the node cap is hit; the caller then falls back to coloring.
 func (s *solver) hasClique(m int, nodeCap int64) bool {
+	s.clique = s.clique[:0]
 	if m <= 1 {
+		if m == 1 && s.n >= 1 {
+			s.clique = append(s.clique, 0)
+		}
 		return s.n >= m
 	}
 	s.nodes = 0
@@ -93,6 +99,7 @@ func (s *solver) expand(size, need int, P []uint64, nodeCap int64) bool {
 			b := bits.TrailingZeros64(P[wi])
 			v := wi*64 + b
 			P[wi] &^= 1 << uint(b)
+			s.clique = append(s.clique[:size], v)
 			if size+1 >= need {
 				return true
 			}

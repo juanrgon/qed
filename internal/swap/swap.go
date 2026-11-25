@@ -43,9 +43,26 @@ type req struct {
 	vals []uint8
 }
 
+// Cert is the proof that one m-subset cannot be replaced: m requirements
+// (each a list of columns and values) that only rows in the subset cover
+// and that pairwise put different values in some shared column. New rows
+// would need one row per requirement, so m-1 rows cannot cover them.
+type Cert struct {
+	Rows uint64 // the subset, as a bit mask of row indices
+	Cols [][]int
+	Vals [][]uint8
+}
+
 // Check runs the m -> m-1 test over every m-subset of rows of a.
 // nodeCap bounds each clique or coloring search.
 func Check(a *ca.Array, t, v, m, workers int, nodeCap int64) Summary {
+	return CheckCerts(a, t, v, m, workers, nodeCap, nil)
+}
+
+// CheckCerts is Check, and also calls emit with the clique certificate of
+// every subset proven by a clique. emit may be called from several
+// goroutines at once.
+func CheckCerts(a *ca.Array, t, v, m, workers int, nodeCap int64, emit func(Cert)) Summary {
 	if a.N > 64 {
 		panic("swap: at most 64 rows supported")
 	}
@@ -151,6 +168,15 @@ func Check(a *ca.Array, t, v, m, workers int, nodeCap int64) Summary {
 					sol.load(U, conflicts)
 					if sol.hasClique(m, nodeCap) {
 						byClique.Add(1)
+						if emit != nil {
+							c := Cert{Rows: S}
+							for _, vi := range sol.clique {
+								q := L[U[vi]]
+								c.Cols = append(c.Cols, q.cols)
+								c.Vals = append(c.Vals, q.vals)
+							}
+							emit(c)
+						}
 						return
 					}
 					colors, status := sol.color(m-1, nodeCap)

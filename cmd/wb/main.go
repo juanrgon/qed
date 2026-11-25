@@ -6,15 +6,18 @@
 package main
 
 import (
+	"bufio"
+	"crypto/sha256"
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"runtime/pprof"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/juanrgon/mathbench/internal/ca"
@@ -82,9 +85,10 @@ func cmdSwap(args []string) {
 	t := fs.Int("t", 3, "strength")
 	v := fs.Int("v", 3, "symbols")
 	m := fs.Int("m", 6, "rows to remove (try to replace with m-1)")
-	workers := fs.Int("workers", runtime.NumCPU(), "worker goroutines")
+	workers := fs.Int("workers", 8, "worker goroutines (8 = the performance cores)")
 	nodeCap := fs.Int64("cap", 1<<22, "node cap per clique or coloring search")
 	out := fs.String("out", "runs/swap-witnesses", "where to save any verified smaller array")
+	certPath := fs.String("certs", "", "write a clique certificate for every subset to this file (check it with check-swap)")
 	fs.Parse(args)
 	if fs.NArg() != 1 {
 		die(fmt.Errorf("need one file"))
@@ -96,8 +100,48 @@ func cmdSwap(args []string) {
 	if !ca.Verify(a, *t, *v).OK() {
 		die(fmt.Errorf("input is not a covering array"))
 	}
+	var emit func(swap.Cert)
+	var flush func() error
+	if *certPath != "" {
+		raw, err := os.ReadFile(fs.Arg(0))
+		if err != nil {
+			die(err)
+		}
+		f, err := os.Create(*certPath)
+		if err != nil {
+			die(err)
+		}
+		bw := bufio.NewWriterSize(f, 1<<20)
+		fmt.Fprintf(bw, "mathbench swap-certs v1 n=%d t=%d k=%d v=%d m=%d sha256=%x\n", a.N, *t, a.K, *v, *m, sha256.Sum256(raw))
+		var mu sync.Mutex
+		rec := make([]byte, 8)
+		emit = func(c swap.Cert) {
+			mu.Lock()
+			defer mu.Unlock()
+			binary.LittleEndian.PutUint64(rec, c.Rows)
+			bw.Write(rec)
+			for i := range c.Cols {
+				for _, col := range c.Cols[i] {
+					bw.WriteByte(byte(col))
+				}
+				bw.Write(c.Vals[i])
+			}
+		}
+		flush = func() error {
+			if err := bw.Flush(); err != nil {
+				return err
+			}
+			return f.Close()
+		}
+	}
 	t0 := time.Now()
-	s := swap.Check(a, *t, *v, *m, *workers, *nodeCap)
+	s := swap.CheckCerts(a, *t, *v, *m, *workers, *nodeCap, emit)
+	if flush != nil {
+		if err := flush(); err != nil {
+			die(err)
+		}
+		fmt.Printf("  certificates written to %s (%d cliques)\n", *certPath, s.ByClique)
+	}
 	fmt.Printf("%d -> %d on %s (N=%d): %d subsets in %s\n", *m, *m-1, filepath.Base(fs.Arg(0)), a.N, s.Subsets, time.Since(t0).Round(time.Millisecond))
 	fmt.Printf("  impossible: %d (clique proof %d, exhaustive coloring %d)\n", s.Impossible(), s.ByClique, s.ByColoring)
 	fmt.Printf("  undetermined (cap hit): %d\n", s.Undetermined)
