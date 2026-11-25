@@ -10,7 +10,8 @@ numbers. **Claim** means not yet checked.
 
 ## 1. Likely new: CAN(3, 8, 3) >= 39 (no 37- or 38-row array exists)
 
-Reproduced, plus one outside fact. Not peer reviewed. Not posted anywhere.
+Computer proof, every step run by code in this repo (`wb lightslice`,
+about 5 seconds). Not peer reviewed.
 
 **Argument.** In a CA(N; 3, 8, 3), fix a column j and symbol s. The rows
 with column j equal to s must cover every pair on the other 7 columns, so
@@ -19,7 +20,7 @@ has at least 12 rows. If N <= 38, the three symbols of any column cannot
 all have 13 or more rows, so every column has a "light" symbol with
 exactly 12 rows. A light slice is then a CA(12; 2, 7, 3).
 
-CA(12; 2, 7, 3) is unique up to isomorphism (outside fact, see below).
+CA(12; 2, 7, 3) is unique up to isomorphism (re-proved here, see below).
 Relabel so column 0's light slice A is a fixed copy R of it. For column Y
 with light symbol v, the slice B = {rows with Y = v} has 12 rows, holds
 exactly A's rows with Y = v (every row with column 0 = 0 is in A), and
@@ -58,10 +59,29 @@ Tests:
   no false obstructions. This tests the reduction itself, which every
   other check shares.
 
-**Outside fact this depends on.** CA(12; 2, 7, 3) is unique, and
-CAN(2, 7, 3) = 12. Sources: Colbourn, Kéri, Rivas Soriano, Schlage-Puchta
-(2010) and Kokkala et al., [arXiv 1901.03594](https://arxiv.org/abs/1901.03594).
-Not re-proved here.
+**The two small facts, re-proved here.** The argument needs
+CAN(2, 7, 3) = 12 and that CA(12; 2, 7, 3) is unique. Both were published
+before (Colbourn, Kéri, Rivas Soriano, Schlage-Puchta 2010; Kokkala et
+al., [arXiv 1901.03594](https://arxiv.org/abs/1901.03594)), and
+`internal/classify` now re-proves both from scratch in about 2 seconds:
+
+- It classifies CA(N; 2, k, 3) one column at a time, keeping one array
+  per isomorphism class. No CA(11; 2, 7, 3) exists, and CA(12; 2, 7, 3)
+  has exactly one class.
+- Classes are only merged when an explicit relabeling maps one array
+  onto the other and a plain row comparison confirms it. So a bug in the
+  isomorphism search can only make too many classes, never too few.
+- `wb lightslice` now pins the class it found itself, not a file. Given
+  either published copy, it first checks that the copy is isomorphic to
+  that class.
+- Controls that match published counts: the 9-row, 4-column array is
+  unique; there is no CA(11; 2, 6, 3); and there are exactly 13 classes
+  of CA(12; 2, 6, 3), the count in Izquierdo-Marquez and Torres-Jimenez
+  2019. 50 random relabelings of the 12-row array all land in one class.
+
+Each enumeration has one implementation in this repo, plus the controls
+above. A second, independent check (a direct SAT encoding with a checked
+UNSAT proof) is still on the list.
 
 **Novelty check.**
 - The live table (2026-11-24) still says 37.
@@ -99,8 +119,10 @@ CAN(4, 9, 3) >= 117 and CAN(5, 10, 3) >= 351. The live CSVs show floors
 of 111 and 333 for those cells (checked 2026-11-25).
 
 **Before calling it settled:**
-1. Re-prove uniqueness of CA(12; 2, 7, 3), for example with a SAT solver.
-2. Check the light-slice step with a third, direct SAT encoding.
+1. Done: uniqueness of CA(12; 2, 7, 3) and CAN(2, 7, 3) = 12 are
+   re-proved by `internal/classify`.
+2. Check the classification and the light-slice step with a direct SAT
+   encoding and a checked UNSAT proof.
 3. Read the 2018 paper and Colbourn's tables.
 4. Have a human combinatorialist read the argument.
 

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/juanrgon/mathbench/internal/ca"
+	"github.com/juanrgon/mathbench/internal/classify"
 	"github.com/juanrgon/mathbench/internal/engine"
 	"github.com/juanrgon/mathbench/internal/lightslice"
 	"github.com/juanrgon/mathbench/internal/run"
@@ -246,20 +247,64 @@ func cmdSearch(args []string) {
 	summarize(recs, time.Since(t0))
 }
 
+// cmdLightslice runs the full proof that no CA(38; 3, 8, 3) exists.
+//
+// Step 1 classifies small strength-2 arrays from scratch: no
+// CA(11; 2, 7, 3) exists, so every slice has at least 12 rows, and
+// CA(12; 2, 7, 3) has exactly one isomorphism class, so column 0's light
+// slice can be pinned. Step 2 pins it and looks for contradictions. With
+// a FILE argument, step 2 pins that copy instead, after checking that it
+// is isomorphic to the class found in step 1.
 func cmdLightslice(args []string) {
 	fs := flag.NewFlagSet("lightslice", flag.ExitOnError)
 	fs.Parse(args)
-	if fs.NArg() != 1 {
-		die(fmt.Errorf("need the CA(12; 2, 7, 3) file"))
-	}
-	r, err := ca.ReadFile(fs.Arg(0), 3)
-	if err != nil {
-		die(err)
-	}
-	if r.N != 12 || r.K != 7 || !ca.Verify(r, 2, 3).OK() {
-		die(fmt.Errorf("input is not a CA(12; 2, 7, 3)"))
+	if fs.NArg() > 1 {
+		die(fmt.Errorf("at most one CA(12; 2, 7, 3) file"))
 	}
 	t0 := time.Now()
+	l11 := classify.Levels(11, 7, 3)
+	levels := classify.Levels(12, 7, 3)
+	fmt.Printf("step 1 (%s): CA(11;2,7,3) classes: %d; CA(12;2,7,3) classes: %d\n",
+		time.Since(t0).Round(time.Millisecond), len(l11[6]), len(levels[6]))
+	if len(l11[6]) != 0 || len(levels[6]) != 1 {
+		die(fmt.Errorf("classification does not support the argument"))
+	}
+	rep := levels[6][0]
+	if !classify.IsCA(rep, 3) {
+		die(fmt.Errorf("class representative is not a CA(12; 2, 7, 3)"))
+	}
+	r := ca.New(0, 7)
+	for i := 0; i < rep.N(); i++ {
+		row := make([]uint8, 7)
+		for c := range row {
+			row[c] = rep[c][i]
+		}
+		r.AppendRow(row)
+	}
+	if fs.NArg() == 1 {
+		var err error
+		r, err = ca.ReadFile(fs.Arg(0), 3)
+		if err != nil {
+			die(err)
+		}
+		if r.N != 12 || r.K != 7 || !ca.Verify(r, 2, 3).OK() {
+			die(fmt.Errorf("input is not a CA(12; 2, 7, 3)"))
+		}
+		rows := make([][]uint8, r.N)
+		for i := range rows {
+			rows[i] = r.Row(i)
+		}
+		x := classify.FromRows(rows)
+		m, ok := classify.FindIso(x, rep, 3)
+		if !ok || !classify.SameUpToRows(classify.Apply(x, m), rep) {
+			die(fmt.Errorf("input is not isomorphic to the class found in step 1"))
+		}
+		fmt.Println("input file is isomorphic to it (map checked)")
+	}
+	if !ca.Verify(r, 2, 3).OK() {
+		die(fmt.Errorf("pinned slice does not verify"))
+	}
+	t0 = time.Now()
 	t := lightslice.Build(lightslice.Pinned(r), 8, 12)
 	fmt.Printf("candidate light slices per column (symbol 0,1,2), found in %s:\n", time.Since(t0).Round(time.Millisecond))
 	for Y := 1; Y < t.K; Y++ {
@@ -285,6 +330,9 @@ func cmdLightslice(args []string) {
 		}
 	}
 	fmt.Printf("%d of 21 column pairs are full obstructions\n", bad)
+	if bad > 0 {
+		fmt.Println("RESULT: no CA(38; 3, 8, 3) exists, so CAN(3, 8, 3) >= 39")
+	}
 }
 
 func summarize(recs []run.Record, wall time.Duration) {
