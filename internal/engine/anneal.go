@@ -4,7 +4,7 @@ import (
 	"math"
 	"math/rand/v2"
 
-	"github.com/juanrgon/mathbench/internal/ca"
+	"github.com/juanrgon/qed/internal/ca"
 )
 
 // Params controls one annealing run. The budget is a move count, not a

@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/juanrgon/mathbench/internal/sat"
+	"github.com/juanrgon/qed/internal/sat"
 )
 
 // Graph is an adjacency matrix.

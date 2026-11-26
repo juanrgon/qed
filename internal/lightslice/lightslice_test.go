@@ -3,7 +3,7 @@ package lightslice
 import (
 	"testing"
 
-	"github.com/juanrgon/mathbench/internal/ca"
+	"github.com/juanrgon/qed/internal/ca"
 )
 
 const K = 8 // the main case: 8 columns, 12-row slices

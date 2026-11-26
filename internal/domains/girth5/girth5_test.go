@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/juanrgon/mathbench/internal/sat"
+	"github.com/juanrgon/qed/internal/sat"
 )
 
 // plainOK is a slow, separate girth check used only by tests.

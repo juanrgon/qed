@@ -1,4 +1,4 @@
-// Command wb is the mathbench workbench.
+// Command wb is the qed workbench.
 //
 //	wb verify FILE                 check a covering array with the plain verifier
 //	wb swap FILE -m 6              can any m rows be replaced by m-1?
@@ -24,15 +24,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/juanrgon/mathbench/internal/ca"
-	"github.com/juanrgon/mathbench/internal/classify"
-	"github.com/juanrgon/mathbench/internal/core"
-	"github.com/juanrgon/mathbench/internal/domains/girth5"
-	"github.com/juanrgon/mathbench/internal/engine"
-	"github.com/juanrgon/mathbench/internal/lightslice"
-	"github.com/juanrgon/mathbench/internal/run"
-	"github.com/juanrgon/mathbench/internal/sat"
-	"github.com/juanrgon/mathbench/internal/swap"
+	"github.com/juanrgon/qed/internal/ca"
+	"github.com/juanrgon/qed/internal/classify"
+	"github.com/juanrgon/qed/internal/core"
+	"github.com/juanrgon/qed/internal/domains/girth5"
+	"github.com/juanrgon/qed/internal/engine"
+	"github.com/juanrgon/qed/internal/lightslice"
+	"github.com/juanrgon/qed/internal/run"
+	"github.com/juanrgon/qed/internal/sat"
+	"github.com/juanrgon/qed/internal/swap"
 )
 
 func main() {

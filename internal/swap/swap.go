@@ -18,7 +18,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/juanrgon/mathbench/internal/ca"
+	"github.com/juanrgon/qed/internal/ca"
 )
 
 // Summary aggregates the outcome over all m-subsets.

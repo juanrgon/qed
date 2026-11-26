@@ -4,7 +4,7 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	"github.com/juanrgon/mathbench/internal/ca"
+	"github.com/juanrgon/qed/internal/ca"
 )
 
 // The incremental counts must agree with the naive verifier after many

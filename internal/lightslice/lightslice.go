@@ -30,7 +30,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/juanrgon/mathbench/internal/ca"
+	"github.com/juanrgon/qed/internal/ca"
 )
 
 // MaxK is the most columns a packed Row holds. The main case is K = 8

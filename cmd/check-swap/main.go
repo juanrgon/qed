@@ -60,7 +60,8 @@ func run(arrayPath, certPath string, out io.Writer) error {
 	}
 	h := map[string]string{}
 	fields := strings.Fields(header)
-	if len(fields) < 3 || fields[0] != "mathbench" || fields[1] != "swap-certs" || fields[2] != "v1" {
+	// "mathbench" is the project's old name; both mark the same v1 format.
+	if len(fields) < 3 || (fields[0] != "qed" && fields[0] != "mathbench") || fields[1] != "swap-certs" || fields[2] != "v1" {
 		return fmt.Errorf("not a v1 swap certificate file")
 	}
 	for _, kv := range fields[3:] {

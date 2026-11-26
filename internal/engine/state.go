@@ -4,7 +4,7 @@
 // a simulated annealing search driven by uncovered requirements.
 package engine
 
-import "github.com/juanrgon/mathbench/internal/ca"
+import "github.com/juanrgon/qed/internal/ca"
 
 // State tracks how many rows cover each requirement and keeps the set of
 // uncovered requirements so a random one can be drawn in O(1).

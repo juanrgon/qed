@@ -3,7 +3,7 @@ package girth5
 import (
 	"math/rand/v2"
 
-	"github.com/juanrgon/mathbench/internal/sat"
+	"github.com/juanrgon/qed/internal/sat"
 )
 
 // Solver answers a CNF query. Search loops use a fast solver with no

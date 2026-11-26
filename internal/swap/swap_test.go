@@ -4,7 +4,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/juanrgon/mathbench/internal/ca"
+	"github.com/juanrgon/qed/internal/ca"
 )
 
 func witness(t *testing.T) *ca.Array {

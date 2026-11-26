@@ -1,4 +1,4 @@
-# mathbench
+# qed
 
 A small, fast Go framework for finding and checking new results in
 combinatorics on one laptop (an M1 Max). AI coding agents write the
@@ -103,7 +103,7 @@ go run ./cmd/verify-ca internal/ca/testdata/CA_42_3_8_3.txt
 Flags go before the file argument. SAT features need `brew install
 cadical`. For the second proof checker, build
 [cake_lpr](https://github.com/tanyongkiam/cake_lpr) with `make` and put
-it on your PATH (or set `MATHBENCH_CAKE_LPR`).
+it on your PATH (or set `QED_CAKE_LPR`).
 
 ## Layout
 

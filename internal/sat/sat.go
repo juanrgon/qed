@@ -111,10 +111,10 @@ type Result struct {
 var ErrNoSolver = errors.New("cadical not found (brew install cadical)")
 
 // CakeLPR finds the cake_lpr proof checker (a formally verified LRAT
-// checker built with CakeML): $MATHBENCH_CAKE_LPR, then PATH, then
+// checker built with CakeML): $QED_CAKE_LPR, then PATH, then
 // ~/github.com/tanyongkiam/cake_lpr/cake_lpr.
 func CakeLPR() (string, bool) {
-	if p := os.Getenv("MATHBENCH_CAKE_LPR"); p != "" {
+	if p := os.Getenv("QED_CAKE_LPR"); p != "" {
 		return p, true
 	}
 	if p, err := exec.LookPath("cake_lpr"); err == nil {

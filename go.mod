@@ -1,3 +1,3 @@
-module github.com/juanrgon/mathbench
+module github.com/juanrgon/qed
 
 go 1.26
