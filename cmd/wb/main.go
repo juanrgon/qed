@@ -131,7 +131,7 @@ func cmdSwap(args []string) {
 			die(err)
 		}
 		bw := bufio.NewWriterSize(f, 1<<20)
-		fmt.Fprintf(bw, "mathbench swap-certs v1 n=%d t=%d k=%d v=%d m=%d sha256=%x\n", a.N, *t, a.K, *v, *m, sha256.Sum256(raw))
+		fmt.Fprintf(bw, "qed swap-certs v1 n=%d t=%d k=%d v=%d m=%d sha256=%x\n", a.N, *t, a.K, *v, *m, sha256.Sum256(raw))
 		var mu sync.Mutex
 		rec := make([]byte, 8)
 		emit = func(c swap.Cert) {
