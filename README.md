@@ -1,8 +1,8 @@
 # qed
 
 A small, fast Go framework for finding and checking new results in
-combinatorics on one laptop (an M1 Max). AI coding agents write the
-search code; the framework decides what counts.
+combinatorics and algorithms on one laptop (an M1 Max). AI coding agents
+write the search code; the framework decides what counts.
 
 Every result is a **claim** with a **certificate**, and its status is
 computed by the program from the evidence, not typed in by a person or an
@@ -11,8 +11,16 @@ results need a checkable certificate: clique certificates, an exhaustive
 enumeration that matches published counts, or a SAT proof (LRAT) checked
 by a separate checker.
 
-The first domain is covering arrays. Next up: graphs with no triangles or
-4-cycles, and constant-weight codes (see [Roadmap](#roadmap)).
+Domains so far:
+
+- **Covering arrays** (used to design software test suites).
+- **Graphs with no triangles or 4-cycles** (extremal graph theory).
+- **Fast matrix multiplication schemes**: recipes that multiply small
+  matrices with fewer multiplications, the building blocks of fast
+  matrix multiplication. A flip graph walk over the integers (about 11
+  million moves per second per core) finds them, so every scheme found
+  works over any ring. Controls: it rediscovers Strassen's 7 for 2x2 and
+  Laderman's 23 for 3x3.
 
 ## Results
 
@@ -55,6 +63,8 @@ array exists.
   - `cmd/check-swap`: are these row-swap certificates valid?
   - `cmd/check-lrat`: is this LRAT proof of unsatisfiability valid?
   - `cmd/verify-girth5`: does this graph have no triangle or 4-cycle?
+  - `cmd/verify-matmul`: is this matrix multiplication scheme exactly
+    right over the integers (so over any ring)?
 - **No human review; the ratchet is the gate.** On every push and pull
   request, CI runs [`scripts/ratchet.sh`](scripts/ratchet.sh): the
   previous commit's checker tests (good certificates accepted, damaged

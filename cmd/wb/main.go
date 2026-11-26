@@ -28,6 +28,7 @@ import (
 	"github.com/juanrgon/qed/internal/classify"
 	"github.com/juanrgon/qed/internal/core"
 	"github.com/juanrgon/qed/internal/domains/girth5"
+	"github.com/juanrgon/qed/internal/domains/matmul"
 	"github.com/juanrgon/qed/internal/engine"
 	"github.com/juanrgon/qed/internal/lightslice"
 	"github.com/juanrgon/qed/internal/run"
@@ -54,6 +55,8 @@ func main() {
 		cmdGirth5Reroute(os.Args[2:])
 	case "girth5-lns":
 		cmdGirth5LNS(os.Args[2:])
+	case "matmul":
+		cmdMatmul(os.Args[2:])
 	default:
 		usage()
 	}
@@ -476,6 +479,71 @@ func cmdGirth5LNS(args []string) {
 		return run.Record{Solved: best.Edges() > e0 && start != nil, Best: best.Edges(), Moves: int64(st.Iters), Artifact: artifact}
 	})
 	fmt.Printf("wall %s\n", time.Since(t0).Round(time.Second))
+}
+
+// cmdMatmul runs flip graph walks for <n,m,p> matrix multiplication, one
+// per seed, from the schoolbook scheme. Each new best scheme is saved and
+// checked against the plain Brent equations; check saved files with
+// cmd/verify-matmul.
+func cmdMatmul(args []string) {
+	fs := flag.NewFlagSet("matmul", flag.ExitOnError)
+	n := fs.Int("n", 2, "rows of A")
+	m := fs.Int("m", 2, "columns of A = rows of B")
+	p := fs.Int("p", 2, "columns of B")
+	steps := fs.Int64("steps", 10_000_000, "flip attempts per seed")
+	maxAbs := fs.Int("max", 1, "largest coefficient allowed")
+	stall := fs.Int64("stall", 50_000, "flips without progress before a plus move")
+	restart := fs.Int64("restart", 500_000, "flips spent above the best before going back to it")
+	target := fs.Int("target", 0, "stop a seed once it reaches this rank")
+	seeds := fs.String("seeds", "0:8", "seed or lo:hi range")
+	workers := fs.Int("workers", 8, "parallel seeds")
+	ledgerPath := fs.String("ledger", "runs/ledger.jsonl", "JSONL ledger")
+	outDir := fs.String("out", "runs/matmul", "where schemes go")
+	fs.Parse(args)
+	sl, err := parseSeeds(*seeds)
+	if err != nil {
+		die(err)
+	}
+	os.MkdirAll(*outDir, 0o755)
+	os.MkdirAll(filepath.Dir(*ledgerPath), 0o755)
+	l, err := run.OpenLedger(*ledgerPath)
+	if err != nil {
+		die(err)
+	}
+	defer l.Close()
+	job := fmt.Sprintf("matmul <%d,%d,%d> flip max=%d steps=%d stall=%d restart=%d", *n, *m, *p, *maxAbs, *steps, *stall, *restart)
+	fmt.Println("job:", job)
+	t0 := time.Now()
+	var mu sync.Mutex
+	bestAll := *n * *m * *p
+	recs := run.Seeds(l, job, sl, *workers, func(seed uint64) run.Record {
+		var artifact string
+		save := func(s *matmul.Scheme) {
+			if !s.Correct() {
+				die(fmt.Errorf("seed %d: search produced an incorrect scheme (bug)", seed))
+			}
+			path := filepath.Join(*outDir, fmt.Sprintf("mm-%d-%d-%d-r%d-seed%d.txt", *n, *m, *p, len(s.Terms), seed))
+			os.WriteFile(path, []byte(s.String()), 0o644)
+			artifact = path
+			mu.Lock()
+			if len(s.Terms) < bestAll {
+				bestAll = len(s.Terms)
+				fmt.Printf("  seed %d: rank %d (%s)\n", seed, bestAll, time.Since(t0).Round(time.Second))
+			}
+			mu.Unlock()
+		}
+		res := matmul.Search(matmul.Standard(*n, *m, *p), matmul.Params{
+			Steps: *steps, MaxAbs: int8(*maxAbs), Stall: *stall, Seed: seed, Target: *target, Restart: *restart,
+		}, save)
+		return run.Record{Best: len(res.Best.Terms), Moves: res.Steps, Artifact: artifact}
+	})
+	best := bestAll
+	for _, r := range recs {
+		if r.Best < best {
+			best = r.Best
+		}
+	}
+	fmt.Printf("<%d,%d,%d>: best rank %d over %d seeds, wall %s\n", *n, *m, *p, best, len(recs), time.Since(t0).Round(time.Second))
 }
 
 func createOrStdout(path string) (*os.File, error) {
