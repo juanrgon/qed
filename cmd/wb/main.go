@@ -499,7 +499,32 @@ func cmdMatmul(args []string) {
 	workers := fs.Int("workers", 8, "parallel seeds")
 	ledgerPath := fs.String("ledger", "runs/ledger.jsonl", "JSONL ledger")
 	outDir := fs.String("out", "runs/matmul", "where schemes go")
+	pool := fs.Int("pool", 0, "use the level-by-level pool search, keeping this many schemes per level")
+	walkLen := fs.Int64("walk", 2_000_000, "pool search: flips per walk")
+	walks := fs.Int64("walks", 20_000, "pool search: walks per level before plus moves")
 	fs.Parse(args)
+	if *pool > 0 {
+		sl, err := parseSeeds(*seeds)
+		if err != nil {
+			die(err)
+		}
+		os.MkdirAll(*outDir, 0o755)
+		t0 := time.Now()
+		fmt.Printf("pool search <%d,%d,%d> pool=%d walk=%d walks=%d max=%d\n", *n, *m, *p, *pool, *walkLen, *walks, *maxAbs)
+		best := matmul.SearchPool(matmul.Standard(*n, *m, *p), matmul.PoolParams{
+			Workers: *workers, MaxAbs: int8(*maxAbs), PoolSize: *pool, WalkLen: *walkLen,
+			Walks: *walks, PlusTry: *walks, Target: *target, Seed: sl[0],
+		}, func(s *matmul.Scheme, size int) {
+			if !s.Correct() {
+				die(fmt.Errorf("pool search produced an incorrect scheme (bug)"))
+			}
+			path := filepath.Join(*outDir, fmt.Sprintf("mm-%d-%d-%d-r%d-pool.txt", *n, *m, *p, len(s.Terms)))
+			os.WriteFile(path, []byte(s.String()), 0o644)
+			fmt.Printf("  rank %d (pool %d) (%s)\n", len(s.Terms), size, time.Since(t0).Round(time.Second))
+		})
+		fmt.Printf("<%d,%d,%d>: best rank %d, wall %s\n", *n, *m, *p, len(best.Terms), time.Since(t0).Round(time.Second))
+		return
+	}
 	sl, err := parseSeeds(*seeds)
 	if err != nil {
 		die(err)
